@@ -1,4 +1,5 @@
 import 'dart:ui';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -10,7 +11,11 @@ import '../components/app_back_button.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../core/services/storage_service.dart';
 import '../../core/theme/hardware_theme.dart';
+import '../../core/utils/responsive.dart';
+import '../../core/components/top_notification.dart';
+import '../../core/components/pagination_controls.dart';
 import '../../core/components/skeleton_loader.dart';
+import '../../core/components/profile_picture_picker.dart';
 import '../components/admin_scaffold.dart';
 import 'package:flutter/services.dart';
 
@@ -82,6 +87,8 @@ class _InventoryScreenState extends State<InventoryScreen> {
   final TextEditingController _searchCtrl = TextEditingController();
   String _selectedCategory = 'All';
   bool _isLoading = true;
+  int _currentPage = 1;
+  static const int _itemsPerPage = 8;
 
   @override
   void initState() {
@@ -117,29 +124,36 @@ class _InventoryScreenState extends State<InventoryScreen> {
                 children: [
                   const Icon(Icons.inventory_2_rounded, color: hwOrange, size: 22),
                   const SizedBox(width: 10),
-                  Text('Inventory Catalog', style: TextStyle(fontWeight: FontWeight.w800, color: p.text, fontSize: 20)),
-                  const Spacer(),
+                  Expanded(
+                    child: Text(
+                      'Inventory Catalog',
+                      style: TextStyle(fontWeight: FontWeight.w800, color: p.text, fontSize: 20),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
                   TextButton.icon(
-                      onPressed: () => context.push('/admin/categories'),
-                      icon: const Icon(Icons.category_rounded, size: 18, color: hwYellow),
-                      label: const Text('CATEGORIES', style: TextStyle(color: hwYellow, fontWeight: FontWeight.w700)),
+                    onPressed: () => context.push('/admin/categories'),
+                    icon: const Icon(Icons.category_rounded, size: 18, color: hwYellow),
+                    label: const Text('CATEGORIES', style: TextStyle(color: hwYellow, fontWeight: FontWeight.w700)),
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton.icon(
+                    onPressed: () => _showItemDialog(context),
+                    icon: const Icon(Icons.add_rounded, size: 18),
+                    label: const Text('ADD NEW'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: hwOrange,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
-                    const SizedBox(width: 8),
-                    ElevatedButton.icon(
-                      onPressed: () => _showItemDialog(context),
-                      icon: const Icon(Icons.add_rounded, size: 18),
-                      label: const Text('ADD NEW'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: hwOrange,
-                        foregroundColor: Colors.white,
-                        elevation: 0,
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
+            ),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
                 child: Row(
@@ -217,6 +231,13 @@ class _InventoryScreenState extends State<InventoryScreen> {
                       return matchesSearch && matchesCategory;
                     }).toList();
 
+                    final totalPages = (filteredItems.length / _itemsPerPage).ceil();
+                    if (_currentPage > totalPages) {
+                      _currentPage = totalPages > 0 ? totalPages : 1;
+                    }
+                    final startIndex = (_currentPage - 1) * _itemsPerPage;
+                    final paginatedItems = filteredItems.skip(startIndex).take(_itemsPerPage).toList();
+
                     debugPrint('Inventory items count: ${items.length}, filtered: ${filteredItems.length}');
 
                     return Container(
@@ -225,98 +246,113 @@ class _InventoryScreenState extends State<InventoryScreen> {
                         radius: 28,
                         child: SingleChildScrollView(
                           scrollDirection: Axis.vertical,
-                          child: SizedBox(
-                            width: double.infinity,
-                            child: Theme(
-                              data: theme.copyWith(
-                                dividerColor: p.line,
-                                dataTableTheme: DataTableThemeData(
-                                  dataTextStyle: TextStyle(color: p.text),
-                                ),
-                              ),
-                              child: DataTable(
-                              horizontalMargin: 32,
-                              headingRowColor: WidgetStateProperty.all(p.fill),
-                              headingTextStyle: TextStyle(fontWeight: FontWeight.w800, color: p.faint, fontSize: 12),
-                              columns: const [
-                                DataColumn(label: Text('PRODUCT NAME')),
-                                DataColumn(label: Text('CATEGORY')),
-                                DataColumn(label: Text('TOTAL STOCK')),
-                                DataColumn(label: Text('VARIANTS')),
-                                DataColumn(label: Text('PRICE RANGE')),
-                                DataColumn(label: Text('STATUS')),
-                                DataColumn(label: Text('ACTIONS')),
-                              ],
-                              rows: filteredItems.map((item) {
-                                final isLowStock = item.totalQuantity <= item.lowStockThreshold;
-
-                                final prices = item.variants.map((v) => v.price).toList();
-                                String priceRange = "-";
-                                if (prices.isNotEmpty) {
-                                  final min = prices.reduce((a, b) => a < b ? a : b);
-                                  final max = prices.reduce((a, b) => a > b ? a : b);
-                                  priceRange = min == max ? "₱${min.toStringAsFixed(0)}" : "₱${min.toStringAsFixed(0)} - ₱${max.toStringAsFixed(0)}";
-                                }
-
-                                return DataRow(cells: [
-                                  DataCell(Text(item.name, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: p.text))),
-                                  DataCell(Text(item.categoryId, style: TextStyle(color: p.sub))),
-                                  DataCell(
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                      decoration: BoxDecoration(
-                                        color: isLowStock ? Colors.redAccent.withValues(alpha: 0.18) : Colors.greenAccent.withValues(alpha: 0.14),
-                                        borderRadius: BorderRadius.circular(8),
+                          child: Column(
+                            children: [
+                              SingleChildScrollView(
+                                scrollDirection: Axis.horizontal,
+                                child: SizedBox(
+                                  child: Theme(
+                                    data: theme.copyWith(
+                                      dividerColor: p.line,
+                                      dataTableTheme: DataTableThemeData(
+                                        dataTextStyle: TextStyle(color: p.text),
                                       ),
-                                      child: Text(
-                                        '${item.totalQuantity}',
-                                        style: TextStyle(
-                                          color: isLowStock ? Colors.redAccent : Colors.greenAccent,
-                                          fontWeight: FontWeight.w800,
-                                          fontSize: 12,
-                                        ),
-                                      ),
+                                    ),
+                                    child: DataTable(
+                                      horizontalMargin: 32,
+                                      headingRowColor: WidgetStateProperty.all(p.fill),
+                                      headingTextStyle: TextStyle(fontWeight: FontWeight.w800, color: p.faint, fontSize: 12),
+                                      columns: const [
+                                        DataColumn(label: Text('PRODUCT NAME')),
+                                        DataColumn(label: Text('CATEGORY')),
+                                        DataColumn(label: Text('TOTAL STOCK')),
+                                        DataColumn(label: Text('VARIANTS')),
+                                        DataColumn(label: Text('PRICE RANGE')),
+                                        DataColumn(label: Text('STATUS')),
+                                        DataColumn(label: Text('ACTIONS')),
+                                      ],
+                                      rows: paginatedItems.map((item) {
+                                        final isLowStock = item.totalQuantity <= item.lowStockThreshold;
+
+                                        final prices = item.variants.map((v) => v.price).toList();
+                                        String priceRange = "-";
+                                        if (prices.isNotEmpty) {
+                                          final min = prices.reduce((a, b) => a < b ? a : b);
+                                          final max = prices.reduce((a, b) => a > b ? a : b);
+                                          priceRange = min == max ? "₱${min.toStringAsFixed(0)}" : "₱${min.toStringAsFixed(0)} - ₱${max.toStringAsFixed(0)}";
+                                        }
+
+                                        return DataRow(cells: [
+                                          DataCell(Text(item.name, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: p.text))),
+                                          DataCell(Text(item.categoryId, style: TextStyle(color: p.sub))),
+                                          DataCell(
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                              decoration: BoxDecoration(
+                                                color: isLowStock ? Colors.redAccent.withValues(alpha: 0.18) : Colors.greenAccent.withValues(alpha: 0.14),
+                                                borderRadius: BorderRadius.circular(8),
+                                              ),
+                                              child: Text(
+                                                '${item.totalQuantity}',
+                                                style: TextStyle(
+                                                  color: isLowStock ? Colors.redAccent : Colors.greenAccent,
+                                                  fontWeight: FontWeight.w800,
+                                                  fontSize: 12,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                          DataCell(Text('${item.variants.length} types', style: TextStyle(color: p.sub))),
+                                          DataCell(Text(priceRange, style: TextStyle(fontWeight: FontWeight.bold, color: p.amber))),
+                                          DataCell(Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                            decoration: BoxDecoration(
+                                              color: item.status == 'Active' ? hwOrange.withValues(alpha: 0.18) : p.fill,
+                                              borderRadius: BorderRadius.circular(8),
+                                            ),
+                                            child: Text(
+                                              item.status.toUpperCase(),
+                                              style: TextStyle(
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.w800,
+                                                color: item.status == 'Active' ? hwOrange : p.faint,
+                                              ),
+                                            ),
+                                          )),
+                                          DataCell(Row(
+                                            children: [
+                                              IconButton(
+                                                icon: const Icon(Icons.edit_rounded, size: 20),
+                                                color: p.amber,
+                                                onPressed: () => _showItemDialog(context, item: item),
+                                              ),
+                                              IconButton(
+                                                icon: const Icon(Icons.delete_outline_rounded, size: 20),
+                                                color: p.danger,
+                                                onPressed: () => _confirmDeleteInventoryItem(context, firestoreService, item),
+                                              ),
+                                            ],
+                                          )),
+                                        ]);
+                                      }).toList(),
                                     ),
                                   ),
-                                  DataCell(Text('${item.variants.length} types', style: TextStyle(color: p.sub))),
-                                  DataCell(Text(priceRange, style: TextStyle(fontWeight: FontWeight.bold, color: p.amber))),
-                                  DataCell(Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                    decoration: BoxDecoration(
-                                      color: item.status == 'Active' ? hwOrange.withValues(alpha: 0.18) : p.fill,
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: Text(
-                                      item.status.toUpperCase(),
-                                      style: TextStyle(
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.w800,
-                                        color: item.status == 'Active' ? hwOrange : p.faint,
-                                      ),
-                                    ),
-                                  )),
-                                  DataCell(Row(
-                                    children: [
-                                      IconButton(
-                                        icon: const Icon(Icons.edit_rounded, size: 20),
-                                        color: p.amber,
-                                        onPressed: () => _showItemDialog(context, item: item),
-                                      ),
-                                      IconButton(
-                                        icon: const Icon(Icons.delete_outline_rounded, size: 20),
-                                        color: p.danger,
-                                        onPressed: () => firestoreService.deleteInventoryItem(item.id),
-                                      ),
-                                    ],
-                                  )),
-                                ]);
-                              }).toList(),
-                            ),
+                                ),
+                              ),
+                              if (totalPages > 1)
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(vertical: 16),
+                                  child: PaginationControls(
+                                    currentPage: _currentPage,
+                                    totalPages: totalPages,
+                                    onPageChanged: (newPage) => setState(() => _currentPage = newPage),
+                                  ),
+                                ),
+                            ],
                           ),
                         ),
                       ),
-                    ),
-                  );
+                    );
                   },
                 ),
               ),
@@ -324,6 +360,65 @@ class _InventoryScreenState extends State<InventoryScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  void _confirmDeleteInventoryItem(BuildContext context, FirestoreService service, InventoryItem item) {
+    showDialog(
+      context: context,
+      builder: (dialogCtx) {
+        final p = Pal.of(context);
+        return AlertDialog(
+          backgroundColor: p.surface,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Row(
+            children: [
+              const Icon(Icons.warning_amber_rounded, color: Colors.redAccent, size: 24),
+              const SizedBox(width: 8),
+              Text('Confirm Delete', style: TextStyle(color: p.text, fontWeight: FontWeight.bold, fontSize: 18)),
+            ],
+          ),
+          content: Text(
+            'Are you sure you want to delete "${item.name}" from inventory? This action cannot be undone.',
+            style: TextStyle(color: p.sub, fontSize: 14),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogCtx),
+              child: Text('Cancel', style: TextStyle(color: p.faint)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.redAccent,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              onPressed: () async {
+                Navigator.pop(dialogCtx);
+                try {
+                  await service.deleteInventoryItem(item.id);
+                  if (context.mounted) {
+                    showTopNotification(
+                      context,
+                      'Item "${item.name}" deleted successfully.',
+                      isSuccess: true,
+                    );
+                  }
+                } catch (e) {
+                  if (context.mounted) {
+                    showTopNotification(
+                      context,
+                      'Delete failed: $e',
+                      isError: true,
+                    );
+                  }
+                }
+              },
+              child: const Text('Delete', style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -364,7 +459,7 @@ class _ItemEditDialogState extends State<_ItemEditDialog> {
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _nameCtrl;
   late TextEditingController _lowStockCtrl;
-  late TextEditingController _imageUrlCtrl;
+  List<String> _imageUrls = [];
   final List<_VariantEntry> _variants = [];
   String? _selectedCategory;
   String _status = 'Active';
@@ -374,7 +469,7 @@ class _ItemEditDialogState extends State<_ItemEditDialog> {
     super.initState();
     _nameCtrl = TextEditingController(text: widget.item?.name);
     _lowStockCtrl = TextEditingController(text: widget.item?.lowStockThreshold.toString() ?? '5');
-    _imageUrlCtrl = TextEditingController(text: widget.item?.imageUrls.join(', ') ?? '');
+    _imageUrls = List<String>.from(widget.item?.imageUrls ?? []);
     _selectedCategory = widget.item?.categoryId;
     _status = widget.item?.status ?? 'Active';
 
@@ -391,7 +486,6 @@ class _ItemEditDialogState extends State<_ItemEditDialog> {
   void dispose() {
     _nameCtrl.dispose();
     _lowStockCtrl.dispose();
-    _imageUrlCtrl.dispose();
     for (var v in _variants) {
       v.dispose();
     }
@@ -402,45 +496,6 @@ class _ItemEditDialogState extends State<_ItemEditDialog> {
     setState(() {
       _variants.add(_VariantEntry());
     });
-  }
-
-  bool _isUploadingImage = false;
-
-  Future<void> _pickAndUploadImage() async {
-    final picker = ImagePicker();
-    final pickedFile = await picker.pickImage(
-      source: ImageSource.gallery,
-      maxWidth: 800,
-      maxHeight: 800,
-      imageQuality: 70,
-    );
-    if (pickedFile != null) {
-      setState(() => _isUploadingImage = true);
-      try {
-        final bytes = await pickedFile.readAsBytes();
-        final fileName = 'prod_${DateTime.now().millisecondsSinceEpoch}.jpg';
-        final storageService = StorageService();
-        final url = await storageService.uploadProductImage(fileName, bytes);
-        final currentText = _imageUrlCtrl.text.trim();
-        final newText = currentText.isEmpty ? url : '$currentText, $url';
-        setState(() {
-          _imageUrlCtrl.text = newText;
-          _isUploadingImage = false;
-        });
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Image uploaded successfully from device!'), backgroundColor: Colors.green),
-          );
-        }
-      } catch (e) {
-        setState(() => _isUploadingImage = false);
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Upload failed: $e'), backgroundColor: Colors.red),
-          );
-        }
-      }
-    }
   }
 
   void _removeVariant(int index) {
@@ -460,7 +515,7 @@ class _ItemEditDialogState extends State<_ItemEditDialog> {
       child: ClipRRect(
         borderRadius: BorderRadius.circular(28),
         child: Container(
-          width: 640,
+          width: (Breakpoints.width(context) * 0.92).clamp(280.0, 640.0),
           constraints: const BoxConstraints(maxHeight: 700),
           padding: const EdgeInsets.all(28),
           decoration: BoxDecoration(
@@ -499,6 +554,7 @@ class _ItemEditDialogState extends State<_ItemEditDialog> {
                           inputFormatters: [LengthLimitingTextInputFormatter(50)],
                           validator: (v) {
                             if (v == null || v.trim().isEmpty) return 'Required';
+                            if (v.trim().length < 3) return 'Min 3 characters';
                             if (v.trim().length > 50) return 'Max 50 characters';
                             return null;
                           },
@@ -507,7 +563,19 @@ class _ItemEditDialogState extends State<_ItemEditDialog> {
                         StreamBuilder<List<CategoryModel>>(
                           stream: firestoreService.streamCategories(),
                           builder: (context, snapshot) {
-                            final cats = snapshot.data ?? [];
+                            final rawCats = snapshot.data ?? [];
+                            final uniqueCats = <String, CategoryModel>{};
+                            for (var c in rawCats) {
+                              uniqueCats[c.name.trim().toLowerCase()] = c;
+                            }
+                            final cats = uniqueCats.values.toList();
+
+                            if (_selectedCategory != null && !cats.any((c) => c.name.trim().toLowerCase() == _selectedCategory!.trim().toLowerCase())) {
+                              if (cats.isNotEmpty) {
+                                _selectedCategory = cats.first.name;
+                              }
+                            }
+
                             return DropdownButtonFormField<String>(
                               initialValue: _selectedCategory,
                               dropdownColor: p.surface,
@@ -521,51 +589,15 @@ class _ItemEditDialogState extends State<_ItemEditDialog> {
                           },
                         ),
                         const SizedBox(height: 16),
-                        GestureDetector(
-                          onTap: _isUploadingImage ? null : _pickAndUploadImage,
-                          child: Container(
-                            width: double.infinity,
-                            height: 120,
-                            decoration: BoxDecoration(
-                              color: p.fill,
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(color: p.line),
-                            ),
-                            child: _isUploadingImage
-                                ? const Center(child: CircularProgressIndicator(color: hwOrange))
-                                : (_imageUrlCtrl.text.isNotEmpty
-                                    ? ClipRRect(
-                                        borderRadius: BorderRadius.circular(16),
-                                        child: Stack(
-                                          fit: StackFit.expand,
-                                          children: [
-                                            Image.network(
-                                              _imageUrlCtrl.text.split(',').first.trim(),
-                                              fit: BoxFit.cover,
-                                              errorBuilder: (_, __, ___) => const Center(child: Icon(Icons.broken_image, color: Colors.white54)),
-                                            ),
-                                            Positioned(
-                                              bottom: 8,
-                                              right: 8,
-                                              child: Container(
-                                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                                decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(8)),
-                                                child: const Text('Change Image', style: TextStyle(color: Colors.white, fontSize: 12)),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      )
-                                    : Column(
-                                        mainAxisAlignment: MainAxisAlignment.center,
-                                        children: const [
-                                          Icon(Icons.add_photo_alternate_rounded, color: hwOrange, size: 32),
-                                          SizedBox(height: 8),
-                                          Text('Tap to select & upload product image from device', style: TextStyle(color: Colors.white70, fontSize: 13)),
-                                        ],
-                                      )),
-                          ),
+                        _ProductMultiImagePicker(
+                          initialUrls: _imageUrls,
+                          onImagesChanged: (urls) {
+                            setState(() {
+                              _imageUrls = urls;
+                            });
+                          },
                         ),
+                        const SizedBox(height: 16),
                         const SizedBox(height: 24),
                         Text('Types, Stock & Pricing', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: p.text)),
                         Divider(color: p.line),
@@ -584,7 +616,12 @@ class _ItemEditDialogState extends State<_ItemEditDialog> {
                                     style: TextStyle(color: p.text),
                                     decoration: _hwInputDecoration(context, 'Type Name', hint: 'e.g. 1/4 inch'),
                                     inputFormatters: [LengthLimitingTextInputFormatter(50)],
-                                    validator: (val) => (val != null && val.trim().length > 50) ? 'Max 50 characters' : null,
+                                    validator: (val) {
+                                      if (val == null || val.trim().isEmpty) return 'Required';
+                                      if (val.trim().length < 3) return 'Min 3 chars';
+                                      if (val.trim().length > 50) return 'Max 50 chars';
+                                      return null;
+                                    },
                                   ),
                                 ),
                                 const SizedBox(width: 12),
@@ -597,9 +634,14 @@ class _ItemEditDialogState extends State<_ItemEditDialog> {
                                     keyboardType: TextInputType.number,
                                     inputFormatters: [
                                       FilteringTextInputFormatter.digitsOnly,
-                                      LengthLimitingTextInputFormatter(6),
+                                      LengthLimitingTextInputFormatter(7),
                                     ],
-                                    validator: (val) => (val != null && val.trim().length > 6) ? 'Max 6 digits' : null,
+                                    validator: (val) {
+                                      if (val == null || val.trim().isEmpty) return 'Required';
+                                      if (val.trim().length < 2) return 'Min 2 digits';
+                                      if (val.trim().length > 7) return 'Max 7 digits';
+                                      return null;
+                                    },
                                   ),
                                 ),
                                 const SizedBox(width: 12),
@@ -612,9 +654,14 @@ class _ItemEditDialogState extends State<_ItemEditDialog> {
                                     keyboardType: TextInputType.number,
                                     inputFormatters: [
                                       FilteringTextInputFormatter.digitsOnly,
-                                      LengthLimitingTextInputFormatter(6),
+                                      LengthLimitingTextInputFormatter(7),
                                     ],
-                                    validator: (val) => (val != null && val.trim().length > 6) ? 'Max 6 digits' : null,
+                                    validator: (val) {
+                                      if (val == null || val.trim().isEmpty) return 'Required';
+                                      if (val.trim().length < 2) return 'Min 2 digits';
+                                      if (val.trim().length > 7) return 'Max 7 digits';
+                                      return null;
+                                    },
                                   ),
                                 ),
                                 IconButton(
@@ -677,31 +724,44 @@ class _ItemEditDialogState extends State<_ItemEditDialog> {
                   ElevatedButton(
                     onPressed: () async {
                       if (_formKey.currentState!.validate()) {
-                        final List<ProductVariant> finalVariants = _variants.map((v) => ProductVariant(
-                          name: v.nameCtrl.text.isEmpty ? "Standard" : v.nameCtrl.text,
-                          quantity: int.tryParse(v.qtyCtrl.text) ?? 0,
-                          price: double.tryParse(v.priceCtrl.text) ?? 0.0,
-                        )).toList();
-
-                        final newItem = InventoryItem(
-                          id: widget.item?.id ?? '',
-                          name: _nameCtrl.text,
-                          categoryId: _selectedCategory!,
-                          variants: finalVariants,
-                          lowStockThreshold: int.parse(_lowStockCtrl.text),
-                          status: _status,
-                          createdAt: widget.item?.createdAt ?? DateTime.now(),
-                          updatedAt: DateTime.now(),
-                          imageUrls: _imageUrlCtrl.text.isNotEmpty
-                              ? _imageUrlCtrl.text.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList()
-                              : [],
-                        );
-                        if (widget.item == null) {
-                          await firestoreService.addInventoryItem(newItem);
-                        } else {
-                          await firestoreService.updateInventoryItem(newItem);
+                        if (_selectedCategory == null) {
+                          showTopError(context, 'Please select a category');
+                          return;
                         }
-                        if (context.mounted) Navigator.pop(context);
+                        try {
+                          final List<ProductVariant> finalVariants = _variants.map((v) => ProductVariant(
+                            name: v.nameCtrl.text.isEmpty ? "Standard" : v.nameCtrl.text,
+                            quantity: int.tryParse(v.qtyCtrl.text) ?? 0,
+                            price: double.tryParse(v.priceCtrl.text) ?? 0.0,
+                          )).toList();
+
+                          final newItem = InventoryItem(
+                            id: widget.item?.id ?? '',
+                            name: _nameCtrl.text.trim(),
+                            categoryId: _selectedCategory!,
+                            variants: finalVariants,
+                            lowStockThreshold: int.tryParse(_lowStockCtrl.text) ?? 5,
+                            status: _status,
+                            createdAt: widget.item?.createdAt ?? DateTime.now(),
+                            updatedAt: DateTime.now(),
+                            imageUrls: List<String>.from(_imageUrls),
+                          );
+
+                          if (newItem.imageBytesEstimate > 900 * 1024) {
+                            showTopError(context, 'Product is too large to save. Remove an image.');
+                            return;
+                          }
+                          if (widget.item == null) {
+                            await firestoreService.addInventoryItem(newItem);
+                          } else {
+                            await firestoreService.updateInventoryItem(newItem);
+                          }
+                          if (context.mounted) Navigator.pop(context);
+                        } catch (e) {
+                          if (context.mounted) {
+                            showTopError(context, 'Save error: $e');
+                          }
+                        }
                       }
                     },
                     style: ElevatedButton.styleFrom(
@@ -720,5 +780,192 @@ class _ItemEditDialogState extends State<_ItemEditDialog> {
         ),
       ),
     );
+  }
+}
+
+class _ProductMultiImagePicker extends StatefulWidget {
+  final List<String> initialUrls;
+  final Function(List<String> urls) onImagesChanged;
+
+  const _ProductMultiImagePicker({
+    required this.initialUrls,
+    required this.onImagesChanged,
+  });
+
+  @override
+  State<_ProductMultiImagePicker> createState() => _ProductMultiImagePickerState();
+}
+
+class _ProductMultiImagePickerState extends State<_ProductMultiImagePicker> {
+  late List<String> _urls;
+  bool _isUploading = false;
+  final ImagePicker _picker = ImagePicker();
+
+  @override
+  void initState() {
+    super.initState();
+    _urls = List<String>.from(widget.initialUrls);
+  }
+
+  Future<void> _addImage() async {
+    if (_urls.length >= 3) {
+      if (mounted) {
+        showTopError(context, 'Maximum 3 images allowed per product.');
+      }
+      return;
+    }
+
+    final XFile? image = await _picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 400,
+      maxHeight: 400,
+      imageQuality: 60,
+    );
+
+    if (image != null) {
+      final bytes = await image.readAsBytes();
+
+      setState(() {
+        _isUploading = true;
+      });
+      try {
+        final storage = StorageService();
+        final url = await storage.uploadProductImage(
+          'prod_${DateTime.now().millisecondsSinceEpoch}.jpg',
+          bytes,
+        );
+        setState(() {
+          _urls.add(url);
+          _isUploading = false;
+        });
+        widget.onImagesChanged(_urls);
+      } catch (e) {
+        setState(() {
+          _isUploading = false;
+        });
+        if (mounted) {
+          showTopError(context, '$e');
+        }
+      }
+    }
+  }
+
+  void _removeImage(int index) {
+    setState(() {
+      _urls.removeAt(index);
+    });
+    widget.onImagesChanged(_urls);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = Pal.of(context);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text('Product Images (${_urls.length}/3)', style: TextStyle(color: p.text, fontWeight: FontWeight.bold, fontSize: 13)),
+            if (_urls.length >= 3)
+              Text('Maximum 3 images', style: TextStyle(color: p.amber, fontSize: 12, fontWeight: FontWeight.w600)),
+          ],
+        ),
+        const SizedBox(height: 8),
+        SizedBox(
+          height: 110,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            itemCount: _urls.length >= 3 ? _urls.length : _urls.length + 1,
+            itemBuilder: (context, index) {
+              if (index == _urls.length) {
+                // Add Image Card
+                return GestureDetector(
+                  onTap: _isUploading ? null : _addImage,
+                  child: Container(
+                    width: 110,
+                    margin: const EdgeInsets.only(right: 10),
+                    decoration: BoxDecoration(
+                      color: p.fill,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: p.line, width: 1.5),
+                    ),
+                    child: Center(
+                      child: _isUploading
+                          ? const CircularProgressIndicator(color: hwOrange)
+                          : Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: const [
+                                Icon(Icons.add_photo_alternate_rounded, color: hwOrange, size: 28),
+                                SizedBox(height: 6),
+                                Text('Add Image', style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold)),
+                              ],
+                            ),
+                    ),
+                  ),
+                );
+              }
+
+              final url = _urls[index];
+              return Container(
+                width: 110,
+                margin: const EdgeInsets.only(right: 10),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: p.line),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      _buildImageWidget(url),
+                      Positioned(
+                        top: 6,
+                        right: 6,
+                        child: GestureDetector(
+                          onTap: () => _removeImage(index),
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: const BoxDecoration(
+                              color: Colors.red,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.close, color: Colors.white, size: 14),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildImageWidget(String urlStr) {
+    if (urlStr.startsWith('data:image')) {
+      try {
+        final parts = urlStr.trim().split(',');
+        if (parts.length > 1 && parts.last.trim().isNotEmpty) {
+          final cleanBase64 = parts.last.replaceAll(RegExp(r'\s+'), '');
+          final bytes = base64Decode(cleanBase64);
+          return Image.memory(bytes, fit: BoxFit.cover);
+        }
+      } catch (e) {
+        debugPrint('_buildImageWidget base64 decode error: $e');
+      }
+    } else {
+      return Image.network(
+        urlStr,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => const Center(child: Icon(Icons.broken_image, color: Colors.white54)),
+      );
+    }
+    return const Center(child: Icon(Icons.broken_image, color: Colors.white54));
   }
 }

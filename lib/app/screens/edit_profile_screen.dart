@@ -261,10 +261,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                               ),
                             ),
                             const SizedBox(height: 16),
-                            TextField(
+                            TextFormField(
                               controller: _addressController,
                               maxLines: 2,
                               style: ts(p.text, 14),
+                              validator: Validators.validateAddress,
+                              inputFormatters: [LengthLimitingTextInputFormatter(50)],
                               decoration: InputDecoration(
                                 labelText: 'Home Address',
                                 labelStyle: ts(p.faint, 14),

@@ -210,11 +210,8 @@ class Validators {
   static String? validateAddress(String? v) {
     final s = (v ?? '').trim();
     if (s.isEmpty) return 'Home address is required';
-    if (s.length < 10) return 'Enter your complete address (house no., street, barangay, city)';
-    if (s.length > 200) return 'Address is too long (max 200 characters)';
-    if (!_addressChars.hasMatch(s)) return 'Address contains invalid characters';
-    if (!RegExp(r'[A-Za-z]{3,}').hasMatch(s)) return 'Enter a valid address';
-    if (s.split(RegExp(r'\s+')).length < 3) return 'Include your street, barangay and city';
+    if (s.length < 3) return 'Address must be at least 3 characters';
+    if (s.length > 50) return 'Address must be at most 50 characters';
     return null;
   }
 

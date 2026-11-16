@@ -12,6 +12,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import '../../core/theme/hardware_theme.dart';
+import '../../core/components/top_notification.dart';
 import '../../core/components/skeleton_loader.dart';
 
 class SalesReportsScreen extends StatefulWidget {
@@ -741,8 +742,10 @@ class _SalesReportsScreenState extends State<SalesReportsScreen> with SingleTick
                                         }
                                         if (ctx.mounted) Navigator.pop(ctx);
                                         if (context.mounted) {
-                                          ScaffoldMessenger.of(context).showSnackBar(
-                                            const SnackBar(content: Text('Attendance records deleted successfully')),
+                                          showTopNotification(
+                                            context,
+                                            'Attendance records deleted successfully.',
+                                            isSuccess: true,
                                           );
                                         }
                                       },
@@ -850,7 +853,7 @@ class _SalesReportsScreenState extends State<SalesReportsScreen> with SingleTick
             ElevatedButton(
               onPressed: () async {
                 if (selectedStaffId == null) {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please select staff')));
+                  showTopNotification(context, 'Please select a staff member.', isError: true);
                   return;
                 }
                 final staffUser = await service.getUser(selectedStaffId!);
@@ -871,13 +874,13 @@ class _SalesReportsScreenState extends State<SalesReportsScreen> with SingleTick
 
                 final existingLogsQuery = await FirebaseFirestore.instance
                     .collection('attendance')
-                    .where('staffId', isEqualTo: selectedStaffId)
                     .where('timestamp', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay))
                     .where('timestamp', isLessThan: Timestamp.fromDate(endOfDay))
                     .get();
 
                 final existingLogs = existingLogsQuery.docs
                     .map((d) => AttendanceModel.fromMap(d.data(), d.id))
+                    .where((l) => l.staffId == selectedStaffId)
                     .toList();
 
                 final existingTimeIn = existingLogs.where((l) => l.type == 'Time-In').firstOrNull;
@@ -886,16 +889,20 @@ class _SalesReportsScreenState extends State<SalesReportsScreen> with SingleTick
                 if (selectedType == 'Time-In') {
                   if (existingTimeIn != null) {
                     if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Error: Staff already has a Time-In recorded for this date.')),
+                      showTopNotification(
+                        context,
+                        'Staff already has a Time-In recorded for this date.',
+                        isError: true,
                       );
                     }
                     return;
                   }
                   if (existingTimeOut != null && combinedDateTime.isAfter(existingTimeOut.timestamp)) {
                     if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Error: Time-In cannot be after the existing Time-Out.')),
+                      showTopNotification(
+                        context,
+                        'Time-In cannot be after the existing Time-Out.',
+                        isError: true,
                       );
                     }
                     return;
@@ -903,16 +910,20 @@ class _SalesReportsScreenState extends State<SalesReportsScreen> with SingleTick
                 } else if (selectedType == 'Time-Out') {
                   if (existingTimeOut != null) {
                     if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Error: Staff already has a Time-Out recorded for this date.')),
+                      showTopNotification(
+                        context,
+                        'Staff already has a Time-Out recorded for this date.',
+                        isError: true,
                       );
                     }
                     return;
                   }
                   if (existingTimeIn != null && combinedDateTime.isBefore(existingTimeIn.timestamp)) {
                     if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Error: Time-Out cannot be earlier than Time-In.')),
+                      showTopNotification(
+                        context,
+                        'Time-Out cannot be earlier than Time-In.',
+                        isError: true,
                       );
                     }
                     return;
@@ -932,7 +943,11 @@ class _SalesReportsScreenState extends State<SalesReportsScreen> with SingleTick
                 await service.addAttendance(newRecord);
                 if (context.mounted) {
                   Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Manual attendance added successfully')));
+                  showTopNotification(
+                    context,
+                    'Manual attendance added successfully.',
+                    isSuccess: true,
+                  );
                 }
               },
               child: const Text('Save Record'),

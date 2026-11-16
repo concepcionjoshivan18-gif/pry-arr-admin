@@ -56,6 +56,7 @@ class InventoryItem {
   // Helper getters for backward compatibility / display
   int get totalQuantity => variants.fold(0, (sum, v) => sum + v.quantity);
   double get displayPrice => variants.isNotEmpty ? variants.first.price : 0.0;
+  int get imageBytesEstimate => imageUrls.fold(0, (sum, url) => sum + url.length);
 
   Map<String, dynamic> toMap() {
     return {
@@ -103,6 +104,32 @@ class InventoryItem {
       }
     } catch (_) {}
 
+    List<String> parsedImageUrls = [];
+    if (map['imageUrls'] is List) {
+      final rawList = List<String>.from((map['imageUrls'] as List).map((e) => e.toString()));
+      for (var rawItem in rawList) {
+        final trimmed = rawItem.trim();
+        if (trimmed.isEmpty) continue;
+
+        if (trimmed.contains('data:image')) {
+          final splitItems = trimmed
+              .split(RegExp(r'(?=data:image)'))
+              .map((s) => s.trim())
+              .where((s) => s.isNotEmpty && s != ',')
+              .toList();
+
+          for (var s in splitItems) {
+            final clean = s.endsWith(',') ? s.substring(0, s.length - 1).trim() : s;
+            if (clean.isNotEmpty) {
+              parsedImageUrls.add(clean);
+            }
+          }
+        } else {
+          parsedImageUrls.add(trimmed);
+        }
+      }
+    }
+
     return InventoryItem(
       id: docId,
       name: map['name']?.toString() ?? 'Product',
@@ -113,7 +140,7 @@ class InventoryItem {
       createdAt: parsedDate,
       updatedAt: DateTime.now(),
       sku: map['sku']?.toString(),
-      imageUrls: map['imageUrls'] is List ? List<String>.from((map['imageUrls'] as List).map((e) => e.toString())) : [],
+      imageUrls: parsedImageUrls,
     );
   }
 }

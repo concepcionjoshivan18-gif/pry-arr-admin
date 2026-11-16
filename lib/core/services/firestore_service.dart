@@ -23,7 +23,6 @@ class FirestoreService {
   Stream<List<InventoryItem>> streamInventory() {
     return _db.collection('inventory').snapshots(includeMetadataChanges: true).map((snapshot) {
       final List<InventoryItem> items = [];
-      debugPrint('Firestore inventory snapshots count: ${snapshot.docs.length}');
       for (var doc in snapshot.docs) {
         try {
           items.add(InventoryItem.fromMap(doc.data(), doc.id));
@@ -31,46 +30,14 @@ class FirestoreService {
           debugPrint('Error parsing inventory doc ${doc.id}: $e');
         }
       }
-      if (items.isEmpty) {
-        debugPrint('Inventory collection empty in Firestore. Seeding default items...');
-        final defaultItems = [
-          InventoryItem(
-            id: 'demo_1',
-            name: 'Heavy-Duty Claw Hammer',
-            categoryId: 'Tools',
-            variants: [ProductVariant(name: 'Standard', quantity: 50, price: 350.0)],
-            lowStockThreshold: 5,
-            status: 'Active',
-            createdAt: DateTime.now(),
-            updatedAt: DateTime.now(),
-          ),
-          InventoryItem(
-            id: 'demo_2',
-            name: 'Cordless Power Drill 18V',
-            categoryId: 'Tools',
-            variants: [ProductVariant(name: 'Kit', quantity: 20, price: 2899.0)],
-            lowStockThreshold: 3,
-            status: 'Active',
-            createdAt: DateTime.now(),
-            updatedAt: DateTime.now(),
-          ),
-          InventoryItem(
-            id: 'demo_3',
-            name: 'Drill',
-            categoryId: 'Tools',
-            variants: [ProductVariant(name: 'Standard', quantity: 142, price: 500.0)],
-            lowStockThreshold: 5,
-            status: 'Active',
-            createdAt: DateTime.now(),
-            updatedAt: DateTime.now(),
-          ),
-        ];
-        for (var item in defaultItems) {
-          _db.collection('inventory').doc(item.id).set(item.toMap(), SetOptions(merge: true)).catchError((_) {});
-        }
-        return defaultItems;
+
+      // Deduplicate items by name (case-insensitive) to prevent duplicate or old demo docs from conflicting
+      final Map<String, InventoryItem> uniqueItemsMap = {};
+      for (var item in items) {
+        final nameKey = item.name.trim().toLowerCase();
+        uniqueItemsMap[nameKey] = item;
       }
-      return items;
+      return uniqueItemsMap.values.toList();
     });
   }
 
@@ -855,7 +822,7 @@ class FirestoreService {
   Future<void> seedInitialData() async {
     var cats = await _db.collection('categories').get();
     if (cats.docs.isEmpty) {
-      for (var name in ['Tools', 'Electrical', 'Building']) {
+      for (var name in ['Tools', 'Electrical', 'Building', 'Plumbing', 'Paint']) {
         await addCategory(name);
       }
     }

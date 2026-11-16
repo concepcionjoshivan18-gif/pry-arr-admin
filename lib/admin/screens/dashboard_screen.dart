@@ -76,101 +76,125 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     final pendingOrdersCount = orders.where((o) => o.status == 'pending').length;
                     final lowStockCount = items.where((i) => i.totalQuantity <= i.lowStockThreshold).length;
 
+                    final metricCardsData = [
+                      ('Total Revenue', '₱${NumberFormat('#,###').format(totalRevenue)}', '+12.5%', hwOrange, true, Icons.payments_rounded),
+                      ('Active Accounts', '${allUsers.length}', '+${allUsers.where((u) => u.createdAt.isAfter(DateTime.now().subtract(const Duration(days: 7)))).length} new', hwSteel, true, Icons.engineering_rounded),
+                      ('Pending Orders', '$pendingOrdersCount', 'Action Required', hwYellow, false, Icons.local_shipping_rounded),
+                      ('Stock Health', '${items.length - lowStockCount}/${items.length}', '${items.isNotEmpty ? ((items.length - lowStockCount) / items.length * 100).toInt() : 0}%', hwRust, true, Icons.inventory_2_rounded),
+                    ];
+
                     return SingleChildScrollView(
-                      padding: const EdgeInsets.fromLTRB(36, 24, 48, 48),
+                      padding: const EdgeInsets.fromLTRB(24, 20, 24, 36),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Row(
                             crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
+                              const Icon(Icons.hardware_rounded, color: hwOrange, size: 26),
+                              const SizedBox(width: 10),
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Row(
-                                      children: [
-                                        const Icon(Icons.hardware_rounded, color: hwOrange, size: 26),
-                                        const SizedBox(width: 10),
-                                        Flexible(
-                                          child: Text(
-                                            'Hardware Store Dashboard',
-                                            style: ts(p.text, 28, FontWeight.w800),
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                        ),
-                                      ],
+                                    Text(
+                                      'Hardware Store Dashboard',
+                                      style: ts(p.text, 24, FontWeight.w800),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
                                     ),
-                                    const SizedBox(height: 4),
+                                    const SizedBox(height: 2),
                                     Text(
                                       'Home / Dashboard / Overview',
                                       style: ts(p.faint, 12),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
                                     ),
                                   ],
                                 ),
                               ),
-                              const SizedBox(width: 16),
+                              const SizedBox(width: 12),
                               _buildTopBar(themeController, items),
                             ],
                           ),
-                          const SizedBox(height: 28),
+                          const SizedBox(height: 24),
 
-                          // TOP ROW METRIC CARDS
-                          Row(
-                            children: [
-                              _buildMetricCard('Total Revenue', '₱${NumberFormat('#,###').format(totalRevenue)}', '+12.5%', hwOrange, true, Icons.payments_rounded),
-                              const SizedBox(width: 24),
-                              _buildMetricCard('Active Accounts', '${allUsers.length}', '+${allUsers.where((u) => u.createdAt.isAfter(DateTime.now().subtract(const Duration(days: 7)))).length} new', hwSteel, true, Icons.engineering_rounded),
-                              const SizedBox(width: 24),
-                              _buildMetricCard('Pending Orders', '$pendingOrdersCount', 'Action Required', hwYellow, false, Icons.local_shipping_rounded),
-                              const SizedBox(width: 24),
-                              _buildMetricCard('Stock Health', '${items.length - lowStockCount}/${items.length}', '${items.isNotEmpty ? ((items.length - lowStockCount) / items.length * 100).toInt() : 0}%', hwRust, true, Icons.inventory_2_rounded),
-                            ],
+                          // TOP ROW METRIC CARDS (TASK 3)
+                          GridView.builder(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                              maxCrossAxisExtent: 260,
+                              mainAxisExtent: 130,
+                              crossAxisSpacing: 12,
+                              mainAxisSpacing: 12,
+                            ),
+                            itemCount: metricCardsData.length,
+                            itemBuilder: (context, index) {
+                              final d = metricCardsData[index];
+                              return _buildMetricCard(d.$1, d.$2, d.$3, d.$4, d.$5, d.$6);
+                            },
                           ),
-                          const SizedBox(height: 32),
+                          const SizedBox(height: 24),
 
-                          // PENDING PAYMENTS BANNER
+                          // PENDING PAYMENTS BANNER (TASK 6)
                           GestureDetector(
                             onTap: () => context.go('/admin/pending-payments'),
                             child: Glass(
                               radius: 20,
-                              padding: const EdgeInsets.all(20),
+                              padding: const EdgeInsets.all(18),
                               child: Row(
                                 children: [
                                   Container(
-                                    padding: const EdgeInsets.all(12),
+                                    padding: const EdgeInsets.all(10),
                                     decoration: BoxDecoration(shape: BoxShape.circle, color: hwOrange.withValues(alpha: 0.2)),
-                                    child: const Icon(Icons.payments_rounded, color: hwOrange, size: 24),
+                                    child: const Icon(Icons.payments_rounded, color: hwOrange, size: 22),
                                   ),
                                   const SizedBox(width: 16),
                                   Expanded(
                                     child: Column(
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
-                                        Text('Pending GCash Payments Review', style: ts(p.text, 16, FontWeight.w800)),
+                                        Text('Pending GCash Payments Review', style: ts(p.text, 15, FontWeight.w800)),
                                         const SizedBox(height: 4),
-                                        Text('Tap here to review pending receipts, verify amounts, and confirm or reject payments.', style: ts(p.faint, 13)),
+                                        Text('Tap here to review pending receipts, verify amounts, and confirm or reject payments.', style: ts(p.faint, 12)),
                                       ],
                                     ),
                                   ),
-                                  const Icon(Icons.arrow_forward_ios_rounded, color: hwOrange, size: 18),
+                                  const SizedBox(width: 8),
+                                  const Icon(Icons.arrow_forward_ios_rounded, color: hwOrange, size: 16),
                                 ],
                               ),
                             ),
                           ),
-                          const SizedBox(height: 32),
+                          const SizedBox(height: 24),
 
-                          // MIDDLE ROW: REVENUE TRENDS & INVENTORY DISTRIBUTION
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Expanded(flex: 2, child: _buildRevenueTrendsCard(orders)),
-                              const SizedBox(width: 24),
-                              Expanded(flex: 1, child: _buildInventoryDistributionCard(items)),
-                            ],
+                          // MIDDLE ROW: REVENUE TRENDS & INVENTORY DISTRIBUTION (TASK 4)
+                          LayoutBuilder(
+                            builder: (context, constraints) {
+                              if (constraints.maxWidth >= 900) {
+                                return Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Expanded(flex: 2, child: _buildRevenueTrendsCard(orders)),
+                                    const SizedBox(width: 16),
+                                    Expanded(flex: 1, child: _buildInventoryDistributionCard(items)),
+                                  ],
+                                );
+                              } else {
+                                return Column(
+                                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                                  children: [
+                                    _buildRevenueTrendsCard(orders),
+                                    const SizedBox(height: 16),
+                                    _buildInventoryDistributionCard(items),
+                                  ],
+                                );
+                              }
+                            },
                           ),
 
-                          const SizedBox(height: 32),
+                          const SizedBox(height: 24),
                           // BOTTOM ROW: RECENT ACTIVITY
                           _buildOrderFulfillmentSection(orders.take(5).toList()),
                         ],
@@ -189,43 +213,56 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget _buildMetricCard(String title, String value, String trend, Color color, bool isPositive, IconData icon) {
     final p = Pal.of(context);
     final trendColor = isPositive ? (p.dark ? Colors.greenAccent : const Color(0xFF1B8A4B)) : hwRust;
-    return Expanded(
-      child: Glass(
-        radius: 20,
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(title, style: ts(p.faint, 13, FontWeight.w600)),
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(shape: BoxShape.circle, color: color.withValues(alpha: 0.15)),
-                  child: Icon(icon, color: color, size: 18),
+    return Glass(
+      radius: 20,
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
+                  title,
+                  style: ts(p.faint, 12, FontWeight.w600),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Text(value, style: ts(p.text, 24, FontWeight.w900)),
-            const SizedBox(height: 6),
-            Row(
-              children: [
-                Icon(isPositive ? Icons.arrow_upward_rounded : Icons.info_outline_rounded, color: trendColor, size: 14),
-                const SizedBox(width: 4),
-                Text(trend, style: ts(trendColor, 12, FontWeight.bold)),
-              ],
-            ),
-          ],
-        ),
+              ),
+              const SizedBox(width: 4),
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(shape: BoxShape.circle, color: color.withValues(alpha: 0.15)),
+                child: Icon(icon, color: color, size: 16),
+              ),
+            ],
+          ),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(value, style: ts(p.text, 22, FontWeight.w900), maxLines: 1),
+          ),
+          Row(
+            children: [
+              Icon(isPositive ? Icons.arrow_upward_rounded : Icons.info_outline_rounded, color: trendColor, size: 12),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  trend,
+                  style: ts(trendColor, 11, FontWeight.bold),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
 
-  /// Computes daily sales totals for the given number of days, oldest to newest.
-  /// Fills days with no completed sales with 0.0.
-  /// Only counts orders with status 'completed', ignoring 'cancelled'.
   List<double> dailySales(List<OrderModel> orders, int days) {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
@@ -273,16 +310,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     return Glass(
       radius: 24,
-      padding: const EdgeInsets.all(28),
+      padding: const EdgeInsets.all(24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Inventory Split', style: ts(p.text, 18, FontWeight.bold)),
-          const SizedBox(height: 24),
+          Text('Inventory Split', style: ts(p.text, 16, FontWeight.bold), maxLines: 1, overflow: TextOverflow.ellipsis),
+          const SizedBox(height: 20),
           Center(
             child: SizedBox(
-              height: 180,
-              width: 180,
+              height: 160,
+              width: 160,
               child: CustomPaint(
                 painter: _DonutChartPainter(
                   segments: [
@@ -296,7 +333,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
             ),
           ),
-          const SizedBox(height: 40),
+          const SizedBox(height: 30),
           ...top3.map((cat) => _buildDistributionRow(cat.key, (cat.value / totalItems * 100).toStringAsFixed(1), _getCatColor(top3.indexOf(cat)))),
           if (totalItems - top3.fold(0, (s, e) => s + e.value) > 0)
             _buildDistributionRow('Others', ((totalItems - top3.fold(0, (s, e) => s + e.value)) / totalItems * 100).toStringAsFixed(1), p.faint),
@@ -314,17 +351,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget _buildDistributionRow(String label, String percent, Color color) {
     final p = Pal.of(context);
     return Padding(
-      padding: const EdgeInsets.only(bottom: 20),
+      padding: const EdgeInsets.only(bottom: 16),
       child: Column(
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(label, style: ts(p.sub, 14)),
-              Text('$percent%', style: ts(p.text, 14, FontWeight.bold)),
+              Expanded(child: Text(label, style: ts(p.sub, 13), maxLines: 1, overflow: TextOverflow.ellipsis)),
+              const SizedBox(width: 8),
+              Text('$percent%', style: ts(p.text, 13, FontWeight.bold)),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           ClipRRect(
             borderRadius: BorderRadius.circular(3),
             child: LinearProgressIndicator(
@@ -345,7 +383,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Low Stock Notification Bell Button & Badge
         Stack(
           children: [
             IconButton(
@@ -365,7 +402,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
           ],
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: 8),
         ThemeSwitchWidget(
           dark: tc.dark,
           onToggle: () => tc.toggleTheme(),
@@ -418,17 +455,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final p = Pal.of(context);
     return Glass(
       radius: 24,
-      padding: const EdgeInsets.all(32),
+      padding: const EdgeInsets.all(24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Recent Storefront Orders', style: ts(p.text, 18, FontWeight.bold)),
+              Expanded(child: Text('Recent Storefront Orders', style: ts(p.text, 16, FontWeight.bold), maxLines: 1, overflow: TextOverflow.ellipsis)),
               TextButton(
                 onPressed: () => context.go('/admin/sales'),
-                child: const Text('View All Sales', style: TextStyle(color: hwOrange, fontWeight: FontWeight.bold)),
+                child: const Text('View All', style: TextStyle(color: hwOrange, fontWeight: FontWeight.bold)),
               ),
             ],
           ),
@@ -446,7 +483,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               itemBuilder: (context, i) {
                 final o = orders[i];
                 return ListTile(
-                  contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                  contentPadding: const EdgeInsets.symmetric(vertical: 6),
                   leading: CircleAvatar(
                     backgroundColor: hwOrange.withValues(alpha: 0.15),
                     child: const Icon(Icons.shopping_bag_rounded, color: hwOrange, size: 18),
@@ -510,7 +547,6 @@ class _DonutChartPainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
 
-// ───────────── Smooth Line Chart Components ─────────────
 String _fmt(double v) {
   final s = v.toStringAsFixed(v >= 1000 ? 0 : 2);
   final parts = s.split('.');
@@ -561,7 +597,7 @@ class RevenueCard extends StatelessWidget {
 
     return Glass(
       radius: 24,
-      padding: const EdgeInsets.all(26),
+      padding: const EdgeInsets.all(24),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Expanded(
@@ -569,14 +605,15 @@ class RevenueCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text('Revenue trends & daily sales',
-                      style: ts(p.text, 20, FontWeight.w600)),
+                      style: ts(p.text, 18, FontWeight.w600), maxLines: 2, overflow: TextOverflow.ellipsis),
                   const SizedBox(height: 4),
                   Text('Avg daily sales: ₱${_fmt(avg)}',
-                      style: ts(p.faint, 13)),
+                      style: ts(p.faint, 12), maxLines: 1, overflow: TextOverflow.ellipsis),
                 ]),
           ),
+          const SizedBox(width: 8),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
               color: p.fill,
               borderRadius: BorderRadius.circular(16),
@@ -587,7 +624,7 @@ class RevenueCard extends StatelessWidget {
                 value: range,
                 dropdownColor: p.surface,
                 borderRadius: BorderRadius.circular(16),
-                style: ts(p.text, 14, FontWeight.bold),
+                style: ts(p.text, 13, FontWeight.bold),
                 items: const [
                   DropdownMenuItem(value: 7, child: Text('Last 7 days')),
                   DropdownMenuItem(value: 30, child: Text('Last 30 days')),
@@ -598,23 +635,23 @@ class RevenueCard extends StatelessWidget {
             ),
           ),
         ]),
-        const SizedBox(height: 16),
-        Wrap(spacing: 36, runSpacing: 8, children: [
+        const SizedBox(height: 14),
+        Wrap(spacing: 24, runSpacing: 6, children: [
           _stat('Total', '₱${_fmt(total)}', p),
           _stat('Best day', '₱${_fmt(best)}', p),
         ]),
-        const SizedBox(height: 14),
+        const SizedBox(height: 12),
         Expanded(
           child: hasData
               ? SalesChart(data: data, dates: dates)
               : Center(
                   child: Text('No sales in this period yet',
-                      style: ts(p.faint, 14))),
+                      style: ts(p.faint, 13))),
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 8),
         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
           for (final t in ticks)
-            Text(t, style: ts(p.faint, 12)),
+            Text(t, style: ts(p.faint, 11)),
         ]),
       ]),
     );
@@ -622,10 +659,10 @@ class RevenueCard extends StatelessWidget {
 
   Widget _stat(String l, String v, Pal p) =>
       Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(l, style: ts(p.faint, 12)),
+        Text(l, style: ts(p.faint, 11)),
         const SizedBox(height: 2),
         Text(v,
-            style: ts(p.text, 20, FontWeight.w700)),
+            style: ts(p.text, 18, FontWeight.w700)),
       ]);
 }
 

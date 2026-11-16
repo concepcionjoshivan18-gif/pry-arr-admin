@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 
 class ItemImageHelper {
@@ -12,6 +13,30 @@ class ItemImageHelper {
 
 Widget buildItemImage(String? imageUrl, {String? itemName, BoxFit fit = BoxFit.cover}) {
   String? path = imageUrl;
+
+  if (path != null && path.trim().startsWith('data:image')) {
+    try {
+      final parts = path.trim().split(',');
+      if (parts.length > 1 && parts.last.trim().isNotEmpty) {
+        final cleanBase64 = parts.last.replaceAll(RegExp(r'\s+'), '');
+        final bytes = base64Decode(cleanBase64);
+        return Image.memory(
+          bytes,
+          fit: fit,
+          gaplessPlayback: true,
+          errorBuilder: (context, error, stackTrace) => Container(
+            color: Colors.orange.withValues(alpha: 0.15),
+            child: const Center(
+              child: Icon(Icons.hardware_rounded, size: 28, color: Colors.orange),
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('ItemImageHelper base64 decode error: $e');
+    }
+  }
+
   if ((path == null || path.trim().isEmpty) && itemName != null) {
     final lower = itemName.toLowerCase();
     if (lower.contains('drill')) {
@@ -79,6 +104,19 @@ Widget buildItemImage(String? imageUrl, {String? itemName, BoxFit fit = BoxFit.c
   return Image.network(
     trimmed,
     fit: fit,
+    loadingBuilder: (context, child, loadingProgress) {
+      if (loadingProgress == null) return child;
+      return Container(
+        color: Colors.orange.withValues(alpha: 0.1),
+        child: const Center(
+          child: SizedBox(
+            width: 24,
+            height: 24,
+            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.orange),
+          ),
+        ),
+      );
+    },
     errorBuilder: (context, error, stackTrace) => Container(
       color: Colors.orange.withValues(alpha: 0.15),
       child: const Center(

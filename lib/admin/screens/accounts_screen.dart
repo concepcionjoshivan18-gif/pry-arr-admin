@@ -12,6 +12,8 @@ import '../components/app_back_button.dart';
 import '../../core/components/pagination_controls.dart';
 import '../../core/utils/image_helper.dart';
 import '../../core/theme/hardware_theme.dart';
+import '../../core/utils/responsive.dart';
+import '../../core/components/top_notification.dart';
 import '../../core/components/skeleton_loader.dart';
 import '../components/admin_scaffold.dart';
 
@@ -319,8 +321,8 @@ class _PaginatedAccountTableState extends State<_PaginatedAccountTable> {
         _glass(
           radius: 20,
           padding: EdgeInsets.zero,
-          child: SizedBox(
-            width: double.infinity,
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
             child: Theme(
               data: Theme.of(context).copyWith(
                 dividerColor: p.line,
@@ -352,14 +354,26 @@ class _PaginatedAccountTableState extends State<_PaginatedAccountTable> {
                           ),
                         ),
                       const SizedBox(width: 12),
-                      Text(s.fullName,
-                          style: TextStyle(fontWeight: FontWeight.bold, color: p.text)),
+                      Expanded(
+                        child: Text(s.fullName,
+                            style: TextStyle(fontWeight: FontWeight.bold, color: p.text),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis),
+                      ),
                     ],
                   )),
-                  DataCell(Text(s.email, style: TextStyle(color: p.sub))),
-                  DataCell(Text(
-                    s.role == 'staff' ? (s.assignedRole ?? 'General') : '${s.loyaltyPoints} Pts',
-                    style: TextStyle(color: p.sub),
+                  DataCell(ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 160),
+                    child: Text(s.email, style: TextStyle(color: p.sub), maxLines: 1, overflow: TextOverflow.ellipsis),
+                  )),
+                  DataCell(ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 120),
+                    child: Text(
+                      s.role == 'staff' ? (s.assignedRole ?? 'General') : '${s.loyaltyPoints} Pts',
+                      style: TextStyle(color: p.sub),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   )),
                   DataCell(Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -476,7 +490,7 @@ class _AccountFormDialogState extends State<_AccountFormDialog> {
     _emergencyCtrl = TextEditingController(text: widget.user?.emergencyContact);
     _salaryCtrl = TextEditingController(text: widget.user?.basicSalary?.toString() ?? '0');
     _rfidUidCtrl = TextEditingController(text: widget.user?.rfidUid);
-    _assignedRole = widget.user?.assignedRole ?? 'Sales';
+    _assignedRole = widget.user?.assignedRole ?? 'Staff';
 
     if ((widget.user?.rfidUid == null || widget.user!.rfidUid!.isEmpty) && widget.user?.uid != null) {
       _loadAssignedCardFromCardsCollection(widget.user!.uid);
@@ -657,12 +671,7 @@ class _AccountFormDialogState extends State<_AccountFormDialog> {
         if (card.exists && owner != widget.user?.uid) {
           closeScanDialog();
           if (mounted) {
-            ScaffoldMessenger.of(this.context).showSnackBar(
-              SnackBar(
-                content: Text('Card $scannedUid is already assigned to another account'),
-                backgroundColor: hwRust,
-              ),
-            );
+            showTopError(context, 'Card $scannedUid is already assigned to another account');
           }
           return;
         }
@@ -713,7 +722,7 @@ class _AccountFormDialogState extends State<_AccountFormDialog> {
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
           child: Container(
-            width: 520,
+            width: (Breakpoints.width(context) * 0.92).clamp(280.0, 520.0),
             padding: const EdgeInsets.all(28),
             decoration: BoxDecoration(
               color: p.surface,
@@ -864,7 +873,7 @@ class _AccountFormDialogState extends State<_AccountFormDialog> {
                         dropdownColor: p.surface,
                         style: TextStyle(color: p.text),
                         decoration: _fieldDecoration(context, 'Department'),
-                        items: ['Sales', 'Inventory', 'Delivery', 'Driver', 'Management', 'Staff']
+                        items: ['Staff', 'Driver']
                             .map((r) => DropdownMenuItem<String>(value: r, child: Text(r)))
                             .toList(),
                         onChanged: (String? v) {
@@ -994,19 +1003,14 @@ class _AccountFormDialogState extends State<_AccountFormDialog> {
 
                                   if (mounted) {
                                     Navigator.of(context).pop();
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content:
-                                        Text(isEdit ? 'Record updated!' : 'Staff account created!'),
-                                        backgroundColor: hwSteel,
-                                      ),
+                                    showTopSuccess(
+                                      context,
+                                      isEdit ? 'Record updated!' : 'Staff account created!',
                                     );
                                   }
                                 } catch (e) {
                                   if (mounted) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(content: Text('Error: $e'), backgroundColor: hwRust),
-                                    );
+                                    showTopError(context, 'Error: $e');
                                   }
                                 }
                               }

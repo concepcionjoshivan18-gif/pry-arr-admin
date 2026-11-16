@@ -79,6 +79,12 @@ class AppUser {
       assignedRole?.toLowerCase() == 'driver' ||
       assignedRole?.toLowerCase() == 'delivery';
 
+  bool get isStaff =>
+      role.toLowerCase() == 'staff' ||
+      role.toLowerCase() == 'driver' ||
+      isDriver ||
+      (assignedRole != null && assignedRole!.trim().isNotEmpty);
+
   AppUser copyWith({
     String? uid,
     String? email,

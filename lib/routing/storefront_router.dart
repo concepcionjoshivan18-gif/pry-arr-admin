@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../core/services/auth_service.dart';
@@ -17,7 +18,6 @@ import '../staff/screens/order_list_screen.dart';
 import '../staff/screens/order_detail_screen.dart';
 import '../staff/screens/inventory_view_screen.dart';
 import '../staff/screens/staff_profile_screen.dart';
-import '../staff/screens/attendance_screen.dart';
 import '../staff/screens/staff_payroll_screen.dart';
 import '../staff/screens/driver_dashboard_screen.dart';
 import '../staff/screens/walkin_counter_screen.dart';
@@ -158,10 +158,6 @@ class StorefrontRouter {
             builder: (context, state) => const InventoryViewScreen(),
           ),
           GoRoute(
-            path: '/staff/attendance',
-            builder: (context, state) => const AttendanceScreen(),
-          ),
-          GoRoute(
             path: '/staff/profile',
             builder: (context, state) => const StaffProfileScreen(),
           ),
@@ -171,50 +167,100 @@ class StorefrontRouter {
           ),
         ],
       ),
+      GoRoute(
+        path: '/error',
+        builder: (context, state) {
+          final authService = Provider.of<AuthService>(context);
+          final roleText = authService.currentUser?.role;
+          final errorMsg = authService.loadError ?? (roleText != null ? 'Role not recognized: $roleText' : 'User profile error');
+          return Scaffold(
+            backgroundColor: Colors.black,
+            body: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.error_outline_rounded, color: Colors.redAccent, size: 54),
+                    const SizedBox(height: 16),
+                    Text(
+                      errorMsg,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 24),
+                    ElevatedButton.icon(
+                      onPressed: () => authService.signOut(),
+                      icon: const Icon(Icons.logout_rounded),
+                      label: const Text('Sign Out'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.redAccent,
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
     ],
     redirect: (context, state) {
-      if (authService.isLoading || (authService.hasActiveSession && authService.currentUser == null)) {
-        return null;
-      }
-
-      final user = authService.currentUser;
+      final isErrorRoute = state.matchedLocation == '/error';
       final isLanding = state.matchedLocation == '/landing' || state.matchedLocation == '/';
       final isLoggingIn = state.matchedLocation == '/login';
       final isRegistering = state.matchedLocation == '/register';
 
-      // Unauthenticated users land on /landing (and can navigate to /login or /register)
-      if (!authService.hasActiveSession || user == null) {
-        if (state.matchedLocation.startsWith('/customer/checkout')) {
-          return null;
-        }
+      if (authService.loadError != null) {
+        if (state.matchedLocation == '/login') return null;
+        return '/login';
+      }
+
+      if (authService.isLoading) {
+        return null;
+      }
+
+      final user = authService.currentUser;
+
+      if (user == null) {
+        if (state.matchedLocation.startsWith('/customer/checkout')) return null;
         return (isLanding || isLoggingIn || isRegistering) ? null : '/landing';
       }
 
       if (user.status == 'Inactive') return '/login';
 
-      // Driver Role Redirection
-      if (user.isDriver) {
+      final role = user.role.toLowerCase();
+
+      if (role == 'customer') {
+        if (state.matchedLocation.startsWith('/staff') || state.matchedLocation.startsWith('/driver')) {
+          return '/customer/catalog';
+        }
+        if (isLanding || isLoggingIn || isRegistering) {
+          return '/customer/catalog';
+        }
+        return null;
+      } else if (role == 'driver') {
+        if (state.matchedLocation.startsWith('/customer')) {
+          return '/driver/deliveries';
+        }
         if (isLanding || isLoggingIn || isRegistering) {
           return '/driver/deliveries';
         }
-        if (!state.matchedLocation.startsWith('/driver') && !state.matchedLocation.startsWith('/staff/payroll')) {
-          return '/driver/deliveries';
+        return null;
+      } else if (role == 'staff') {
+        if (state.matchedLocation.startsWith('/customer')) {
+          return '/staff/orders';
+        }
+        if (isLanding || isLoggingIn || isRegistering) {
+          return '/staff/orders';
         }
         return null;
+      } else if (role == 'admin') {
+        return isErrorRoute ? null : '/error';
+      } else {
+        return isErrorRoute ? null : '/error';
       }
-
-      if (isLanding || isLoggingIn) {
-        if (user.role.toLowerCase() == 'staff') return '/staff/orders';
-        return '/customer/catalog';
-      }
-
-      final isStaffRoute = state.matchedLocation.startsWith('/staff');
-      final isCustomerRoute = state.matchedLocation.startsWith('/customer');
-
-      if (isStaffRoute && user.role.toLowerCase() != 'staff') return '/customer/catalog';
-      if (isCustomerRoute && user.role.toLowerCase() != 'customer') return '/staff/orders';
-
-      return null;
     },
   );
 }
@@ -312,8 +358,7 @@ class StaffScaffold extends StatelessWidget {
     int index = 0;
     if (location.startsWith('/staff/walkin')) index = 1;
     if (location.startsWith('/staff/inventory')) index = 2;
-    if (location.startsWith('/staff/attendance')) index = 3;
-    if (location.startsWith('/staff/profile') || location.startsWith('/staff/payroll')) index = 4;
+    if (location.startsWith('/staff/profile') || location.startsWith('/staff/payroll')) index = 3;
 
     final p = Pal.of(context);
 
@@ -343,8 +388,7 @@ class StaffScaffold extends StatelessWidget {
                       _buildStaffTab(context, 0, Icons.list_alt_rounded, 'Fulfillment', index == 0, p),
                       _buildStaffTab(context, 1, Icons.point_of_sale_rounded, 'POS', index == 1, p),
                       _buildStaffTab(context, 2, Icons.inventory_2_rounded, 'Stock', index == 2, p),
-                      _buildStaffTab(context, 3, Icons.alarm_rounded, 'Attendance', index == 3, p),
-                      _buildStaffTab(context, 4, Icons.person_outline_rounded, 'Me', index == 4, p),
+                      _buildStaffTab(context, 3, Icons.person_outline_rounded, 'Me', index == 3, p),
                     ],
                   ),
                 ),
@@ -363,8 +407,7 @@ class StaffScaffold extends StatelessWidget {
         if (idx == 0) context.go('/staff/orders');
         if (idx == 1) context.go('/staff/walkin');
         if (idx == 2) context.go('/staff/inventory');
-        if (idx == 3) context.go('/staff/attendance');
-        if (idx == 4) context.go('/staff/profile');
+        if (idx == 3) context.go('/staff/profile');
       },
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,

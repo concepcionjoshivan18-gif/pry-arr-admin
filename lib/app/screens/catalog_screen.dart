@@ -49,9 +49,14 @@ class _CatalogScreenState extends State<CatalogScreen> {
   int sort = 0, page = 1;
   final favs = <String>{};
 
+  bool _isLoading = true;
+
   @override
   void initState() {
     super.initState();
+    Future.delayed(const Duration(milliseconds: 600), () {
+      if (mounted) setState(() => _isLoading = false);
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final user = Provider.of<AuthService>(context, listen: false).currentUser;
       if (user != null && user.favorites.isNotEmpty) {
@@ -310,7 +315,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
               child: StreamBuilder<List<InventoryItem>>(
                 stream: firestoreService.streamInventory(),
                 builder: (context, invSnapshot) {
-                  if (invSnapshot.connectionState == ConnectionState.waiting) {
+                  if (!invSnapshot.hasData) {
                     return ListView.builder(
                       padding: const EdgeInsets.all(20),
                       itemCount: 4,
@@ -318,71 +323,10 @@ class _CatalogScreenState extends State<CatalogScreen> {
                     );
                   }
                   List<InventoryItem> items = invSnapshot.data ?? [];
-                  if (items.isEmpty) {
-                    items = [
-                      InventoryItem(
-                        id: 'demo_1',
-                        name: 'Heavy-Duty Claw Hammer',
-                        categoryId: 'Tools',
-                        variants: [ProductVariant(name: 'Standard', quantity: 50, price: 350.0)],
-                        lowStockThreshold: 5,
-                        status: 'Active',
-                        createdAt: DateTime.now(),
-                        updatedAt: DateTime.now(),
-                      ),
-                      InventoryItem(
-                        id: 'demo_2',
-                        name: 'Cordless Power Drill 18V',
-                        categoryId: 'Tools',
-                        variants: [ProductVariant(name: 'Kit', quantity: 20, price: 2899.0)],
-                        lowStockThreshold: 3,
-                        status: 'Active',
-                        createdAt: DateTime.now(),
-                        updatedAt: DateTime.now(),
-                      ),
-                      InventoryItem(
-                        id: 'demo_3',
-                        name: 'THHN Copper Wire #12 (100m)',
-                        categoryId: 'Electrical',
-                        variants: [ProductVariant(name: 'Roll', quantity: 30, price: 1450.0)],
-                        lowStockThreshold: 4,
-                        status: 'Active',
-                        createdAt: DateTime.now(),
-                        updatedAt: DateTime.now(),
-                      ),
-                      InventoryItem(
-                        id: 'demo_4',
-                        name: 'LED Bulb 9W Warm White',
-                        categoryId: 'Electrical',
-                        variants: [ProductVariant(name: 'Pack of 3', quantity: 100, price: 220.0)],
-                        lowStockThreshold: 10,
-                        status: 'Active',
-                        createdAt: DateTime.now(),
-                        updatedAt: DateTime.now(),
-                      ),
-                      InventoryItem(
-                        id: 'demo_5',
-                        name: 'Portland Cement (40kg)',
-                        categoryId: 'Building',
-                        variants: [ProductVariant(name: 'Bag', quantity: 200, price: 245.0)],
-                        lowStockThreshold: 20,
-                        status: 'Active',
-                        createdAt: DateTime.now(),
-                        updatedAt: DateTime.now(),
-                      ),
-                      InventoryItem(
-                        id: 'demo_6',
-                        name: 'PVC Pipe 1/2 inch x 10ft',
-                        categoryId: 'Plumbing',
-                        variants: [ProductVariant(name: 'Standard', quantity: 80, price: 115.0)],
-                        lowStockThreshold: 10,
-                        status: 'Active',
-                        createdAt: DateTime.now(),
-                        updatedAt: DateTime.now(),
-                      ),
-                    ];
-                  }
-                  final activeItems = items.where((i) => i.status.toLowerCase() == 'active' || i.status.isEmpty).toList();
+                  final activeItems = items.where((i) {
+                    final st = i.status.trim().toLowerCase();
+                    return st != 'inactive' && st != 'archived';
+                  }).toList();
 
                   return StreamBuilder<List<ReviewModel>>(
                     stream: firestoreService.streamAllReviews(),

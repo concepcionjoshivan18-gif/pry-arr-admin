@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
@@ -28,6 +29,44 @@ class AdminRouter {
       GoRoute(
         path: '/login',
         builder: (context, state) => const LoginScreen(showRegister: false),
+      ),
+      GoRoute(
+        path: '/error',
+        builder: (context, state) {
+          final auth = Provider.of<AuthService>(context);
+          final roleText = auth.currentUser?.role;
+          final errorMsg = auth.loadError ?? (roleText != null ? 'Role not recognized: $roleText' : 'User profile error');
+          return Scaffold(
+            backgroundColor: Colors.black,
+            body: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.error_outline_rounded, color: Colors.redAccent, size: 54),
+                    const SizedBox(height: 16),
+                    Text(
+                      errorMsg,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 24),
+                    ElevatedButton.icon(
+                      onPressed: () => auth.signOut(),
+                      icon: const Icon(Icons.logout_rounded),
+                      label: const Text('Sign Out'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.redAccent,
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
       ),
       ShellRoute(
         builder: (context, state, child) {
@@ -86,22 +125,25 @@ class AdminRouter {
       ),
     ],
     redirect: (context, state) {
-      final user = authService.currentUser;
-      final firebaseUser = FirebaseAuth.instance.currentUser;
       final isLoggingIn = state.matchedLocation == '/login';
+      final isErrorRoute = state.matchedLocation == '/error';
 
-      // Preserve current route during web refresh while Firebase Auth or Firestore profile is loading
-      if (authService.isLoading || (user == null && firebaseUser != null)) {
+      if (authService.loadError != null) {
+        if (state.matchedLocation == '/login') return null;
+        return '/login';
+      }
+
+      if (authService.isLoading) {
         return null;
       }
 
-      if (user == null && firebaseUser == null) {
+      final user = authService.currentUser;
+      if (user == null) {
         return isLoggingIn ? null : '/login';
       }
 
-      if (user?.role != 'admin') {
-        // Strict boundary: lock out non-admins entirely from admin panel web target
-        return '/login';
+      if (user.role.toLowerCase() != 'admin') {
+        return isErrorRoute ? null : '/error';
       }
 
       if (isLoggingIn) {

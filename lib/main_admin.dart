@@ -1,5 +1,7 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import 'firebase_options.dart';
 import 'core/services/auth_service.dart';
@@ -12,30 +14,37 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   try {
     await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-    await FirestoreService().seedInitialData();
-    await NotificationService.instance.initialize();
+    if (kIsWeb) {
+      FirebaseFirestore.instance.settings = const Settings(persistenceEnabled: false);
+    }
   } catch (e) {
     debugPrint('Firebase init: $e');
   }
-  runApp(
-    MultiProvider(
-      providers: [
-        ChangeNotifierProvider<AuthService>(create: (_) => AuthService()),
-        Provider<FirestoreService>(create: (_) => FirestoreService()),
-        ChangeNotifierProvider<ThemeController>(create: (_) => ThemeController()),
-      ],
-      child: const PryArrAdminApp(),
-    ),
-  );
+
+  try {
+    await NotificationService.instance.initialize();
+  } catch (e) {
+    debugPrint('Notification init: $e');
+  }
+
+  runApp(const PryArrAdminApp());
 }
 
 class PryArrAdminApp extends StatelessWidget {
-  const PryArrAdminApp({super.key});
+  final AuthService? authService;
+  const PryArrAdminApp({super.key, this.authService});
 
   @override
   Widget build(BuildContext context) {
-    return Builder(
-      builder: (context) => const AdminMaterialEntry(),
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider<AuthService>.value(
+          value: authService ?? AuthService(target: AppTarget.admin),
+        ),
+        Provider<FirestoreService>(create: (_) => FirestoreService()),
+        ChangeNotifierProvider<ThemeController>(create: (_) => ThemeController()),
+      ],
+      child: const AdminMaterialEntry(),
     );
   }
 }

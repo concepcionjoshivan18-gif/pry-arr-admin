@@ -41,6 +41,10 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   void initState() {
     super.initState();
     _initShakeController();
+    final auth = Provider.of<AuthService>(context, listen: false);
+    if (auth.loadError != null) {
+      _errorMessage = _friendlyAuthError(auth.loadError);
+    }
   }
 
   void _initShakeController() {

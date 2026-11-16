@@ -12,7 +12,6 @@ import '../../core/theme/hardware_theme.dart';
 import '../../core/components/top_notification.dart';
 import '../../core/services/google_maps_service.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'attendance_screen.dart';
 import 'staff_profile_screen.dart';
 
 class DriverDashboardScreen extends StatefulWidget {
@@ -75,7 +74,6 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
   static const tabs = [
     (Icons.local_shipping_rounded, 'Deliveries'),
     (Icons.location_on_rounded, 'Map Pin'),
-    (Icons.alarm_rounded, 'Shift/Time'),
     (Icons.person_rounded, 'Me'),
   ];
 
@@ -131,7 +129,6 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
                       children: [
                         _buildDeliveriesTab(firestoreService, driverUser, p),
                         _buildMapPinTab(p),
-                        const AttendanceScreen(showAppBar: false),
                         const StaffProfileScreen(),
                       ],
                     ),

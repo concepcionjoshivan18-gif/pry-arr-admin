@@ -1,10 +1,12 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/services/firestore_service.dart';
 import '../../core/models/category.dart';
 import '../../core/theme/hardware_theme.dart';
+import '../../core/components/top_notification.dart';
 
 class CategoryManagerScreen extends StatelessWidget {
   const CategoryManagerScreen({super.key});
@@ -146,7 +148,7 @@ class CategoryManagerScreen extends StatelessWidget {
                                       IconButton(
                                         icon: const Icon(Icons.delete_outline_rounded, size: 20),
                                         color: hwRust,
-                                        onPressed: () => firestoreService.deleteCategory(cat.id),
+                                        onPressed: () => _confirmDeleteCategory(context, firestoreService, cat),
                                       ),
                                     ],
                                   ),
@@ -164,6 +166,65 @@ class CategoryManagerScreen extends StatelessWidget {
     ),
   );
 }
+
+  void _confirmDeleteCategory(BuildContext context, FirestoreService service, CategoryModel cat) {
+    showDialog(
+      context: context,
+      builder: (dialogCtx) {
+        final p = Pal.of(context);
+        return AlertDialog(
+          backgroundColor: p.surface,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Row(
+            children: [
+              const Icon(Icons.warning_amber_rounded, color: Colors.redAccent, size: 24),
+              const SizedBox(width: 8),
+              Text('Confirm Delete', style: TextStyle(color: p.text, fontWeight: FontWeight.bold, fontSize: 18)),
+            ],
+          ),
+          content: Text(
+            'Are you sure you want to delete category "${cat.name}"? This action cannot be undone.',
+            style: TextStyle(color: p.sub, fontSize: 14),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogCtx),
+              child: Text('Cancel', style: TextStyle(color: p.faint)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.redAccent,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              onPressed: () async {
+                Navigator.pop(dialogCtx);
+                try {
+                  await service.deleteCategory(cat.id);
+                  if (context.mounted) {
+                    showTopNotification(
+                      context,
+                      'Category "${cat.name}" deleted successfully.',
+                      isSuccess: true,
+                    );
+                  }
+                } catch (e) {
+                  if (context.mounted) {
+                    showTopNotification(
+                      context,
+                      'Delete failed: $e',
+                      isError: true,
+                    );
+                  }
+                }
+              },
+              child: const Text('Delete', style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+          ],
+        );
+      },
+    );
+  }
 
   InputDecoration _hwDialogInputDecoration(BuildContext context, String hint) {
     final p = Pal.of(context);
@@ -251,6 +312,7 @@ class CategoryManagerScreen extends StatelessWidget {
           controller: nameCtrl,
           style: TextStyle(color: Pal.of(context).text),
           decoration: _hwDialogInputDecoration(context, 'Category Name (e.g. Paints)'),
+          inputFormatters: [LengthLimitingTextInputFormatter(50)],
         ),
         actions: [
           TextButton(
@@ -260,9 +322,19 @@ class CategoryManagerScreen extends StatelessWidget {
           const SizedBox(width: 8),
           ElevatedButton(
             onPressed: () async {
-              if (nameCtrl.text.trim().isNotEmpty) {
-                await service.addCategory(nameCtrl.text.trim());
-                if (ctx.mounted) Navigator.pop(ctx);
+              final val = nameCtrl.text.trim();
+              if (val.length < 3) {
+                showTopNotification(context, 'Category name must be at least 3 characters', isError: true);
+                return;
+              }
+              if (val.length > 50) {
+                showTopNotification(context, 'Category name must be at most 50 characters', isError: true);
+                return;
+              }
+              await service.addCategory(val);
+              if (ctx.mounted) {
+                Navigator.pop(ctx);
+                showTopNotification(context, 'Category "$val" added successfully', isSuccess: true);
               }
             },
             style: ElevatedButton.styleFrom(
@@ -291,6 +363,7 @@ class CategoryManagerScreen extends StatelessWidget {
           controller: nameCtrl,
           style: TextStyle(color: Pal.of(context).text),
           decoration: _hwDialogInputDecoration(context, 'Category Name'),
+          inputFormatters: [LengthLimitingTextInputFormatter(50)],
         ),
         actions: [
           TextButton(
@@ -300,9 +373,19 @@ class CategoryManagerScreen extends StatelessWidget {
           const SizedBox(width: 8),
           ElevatedButton(
             onPressed: () async {
-              if (nameCtrl.text.trim().isNotEmpty) {
-                await service.renameCategory(cat.id, nameCtrl.text.trim());
-                if (ctx.mounted) Navigator.pop(ctx);
+              final val = nameCtrl.text.trim();
+              if (val.length < 3) {
+                showTopNotification(context, 'Category name must be at least 3 characters', isError: true);
+                return;
+              }
+              if (val.length > 50) {
+                showTopNotification(context, 'Category name must be at most 50 characters', isError: true);
+                return;
+              }
+              await service.renameCategory(cat.id, val);
+              if (ctx.mounted) {
+                Navigator.pop(ctx);
+                showTopNotification(context, 'Category updated successfully', isSuccess: true);
               }
             },
             style: ElevatedButton.styleFrom(
@@ -312,7 +395,7 @@ class CategoryManagerScreen extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
-            child: const Text('Save Changes', style: TextStyle(fontWeight: FontWeight.bold)),
+            child: const Text('Save Category', style: TextStyle(fontWeight: FontWeight.bold)),
           ),
         ],
       ),

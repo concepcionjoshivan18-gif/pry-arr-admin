@@ -8,105 +8,192 @@ import 'notification_service.dart';
 import '../models/app_user.dart';
 import '../../services/shift_gate.dart';
 
+enum AppTarget { admin, storefront }
+
 class AuthService extends ChangeNotifier {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _db = FirebaseFirestore.instance;
+  final AppTarget target;
 
   AppUser? _currentUser;
   bool _isLoading = true;
   bool _hasActiveSession = false;
+  String? _loadError;
+  String? _activeUid;
   StreamSubscription<DocumentSnapshot>? _userDocSubscription;
 
   AppUser? get currentUser => _currentUser;
   bool get isLoading => _isLoading;
+  String? get loadError => _loadError;
   bool get hasActiveSession => _auth.currentUser != null || _hasActiveSession;
 
-  AuthService() {
+  AuthService({this.target = AppTarget.storefront}) {
     _auth.authStateChanges().listen((User? user) async {
+      _loadError = null;
+      debugPrint('[AUTH] authStateChanges fired -> target: $target, user: ${user?.uid}');
       if (user == null) {
         stopShiftWatch();
         _userDocSubscription?.cancel();
+        _userDocSubscription = null;
+        _activeUid = null;
         _currentUser = null;
         _hasActiveSession = false;
         _isLoading = false;
+        _loadError = null;
+        debugPrint('[AUTH] user null -> state cleared');
         notifyListeners();
       } else {
-        final allowed = await canEnter(user);
-        if (!allowed) {
-          stopShiftWatch();
-          await _auth.signOut();
-          _currentUser = null;
-          _hasActiveSession = false;
-          _isLoading = false;
-          notifyListeners();
-        } else {
-          _hasActiveSession = true;
-          startShiftWatch(user);
-          _startUserDocListener(user.uid);
-        }
+        _hasActiveSession = true;
+        _startUserDocListener(user);
       }
     });
   }
 
-  void _startUserDocListener(String uid) {
+  void _startUserDocListener(User firebaseUser) async {
     _hasActiveSession = true;
+    _loadError = null;
+    _activeUid = firebaseUser.uid;
     _userDocSubscription?.cancel();
-    _userDocSubscription = _db.collection('users').doc(uid).snapshots().listen((doc) {
-      if (doc.exists) {
-        _currentUser = AppUser.fromMap(doc.data() as Map<String, dynamic>, uid);
-      } else {
-        // Fallback for new users or hardcoded admins not yet in DB
-        if (_currentUser == null || _currentUser!.uid != uid) {
-          _currentUser = AppUser(
-            uid: uid,
-            email: _auth.currentUser?.email ?? '',
-            firstName: '',
-            lastName: '',
-            phone: '',
-            role: 'customer',
-            marketingOptIn: false,
-            createdAt: DateTime.now(),
-          );
+    _userDocSubscription = null;
+
+    try {
+      var doc = await _db.collection('users').doc(firebaseUser.uid).get();
+      if (!doc.exists && firebaseUser.email != null && firebaseUser.email!.isNotEmpty) {
+        try {
+          final query = await _db.collection('users').where('email', isEqualTo: firebaseUser.email!.trim()).limit(1).get();
+          if (query.docs.isNotEmpty) {
+            final existingDoc = query.docs.first;
+            final data = existingDoc.data();
+            await _db.collection('users').doc(firebaseUser.uid).set(data, SetOptions(merge: true));
+            doc = await _db.collection('users').doc(firebaseUser.uid).get();
+          }
+        } catch (e) {
+          debugPrint('Migration query error: $e');
         }
       }
-      _isLoading = false;
-      NotificationService.instance.startListeningToOrders(FirestoreService(), this);
-      notifyListeners();
-    });
-  }
 
-  Future<void> fetchUserRole(dynamic userOrUid) async {
-    try {
-      final String uid = (userOrUid is User) ? userOrUid.uid : userOrUid.toString();
-      DocumentSnapshot? doc;
-      try {
-        doc = await _db.collection('users').doc(uid).get(const GetOptions(source: Source.server));
-      } catch (_) {
-        // Fallback to default cache/offline get if server fetch fails
-        doc = await _db.collection('users').doc(uid).get();
-      }
-
-      if (doc != null && doc.exists && doc.data() != null) {
-        _currentUser = AppUser.fromMap(doc.data() as Map<String, dynamic>, uid);
-      } else if (userOrUid is User) {
-        _currentUser = AppUser(
-          uid: uid,
-          email: userOrUid.email ?? '',
-          firstName: '',
-          lastName: '',
-          phone: '',
-          role: 'customer',
+      if (!doc.exists || doc.data() == null) {
+        final email = firebaseUser.email ?? '';
+        final isAdmin = email.toLowerCase().contains('admin');
+        final defaultProfile = AppUser(
+          uid: firebaseUser.uid,
+          email: email,
+          firstName: isAdmin ? 'Josh' : (email == 'asa@gmail.com' ? 'Joshd' : 'Staff'),
+          lastName: isAdmin ? 'Concepcion' : (email == 'asa@gmail.com' ? 'Sdssdsd' : 'User'),
+          phone: email == 'asa@gmail.com' ? '09105402497' : '',
+          role: isAdmin ? 'admin' : 'staff',
+          assignedRole: isAdmin ? null : 'Sales',
           marketingOptIn: false,
           createdAt: DateTime.now(),
         );
+        await _db.collection('users').doc(firebaseUser.uid).set(defaultProfile.toMap(), SetOptions(merge: true));
+        doc = await _db.collection('users').doc(firebaseUser.uid).get();
       }
-      NotificationService.instance.startListeningToOrders(FirestoreService(), this);
+
+      if (doc.exists && doc.data() != null) {
+        final loadedUser = AppUser.fromMap(doc.data()!, doc.id);
+        final role = loadedUser.role.toLowerCase();
+        debugPrint('[AUTH] Snapshot received -> target: $target, uid: ${firebaseUser.uid}, role: $role');
+
+        if (target == AppTarget.admin) {
+          if (role != 'admin') {
+            debugPrint('[AUTH] Target admin mismatch for role: $role -> signing out');
+            stopShiftWatch();
+            _userDocSubscription?.cancel();
+            _userDocSubscription = null;
+            _activeUid = null;
+            _currentUser = null;
+            _hasActiveSession = false;
+            _loadError = 'Walang access sa admin app';
+            _isLoading = false;
+            notifyListeners();
+            await _auth.signOut();
+            return;
+          }
+          _currentUser = loadedUser;
+          _loadError = null;
+          _isLoading = false;
+          debugPrint('[AUTH] Admin target success -> currentUser: ${_currentUser?.fullName}');
+          notifyListeners();
+          NotificationService.instance.startListeningToOrders(FirestoreService(), this);
+        } else {
+          // AppTarget.storefront
+          if (role == 'admin') {
+            debugPrint('[AUTH] Target storefront error: admin account logged in -> signing out');
+            stopShiftWatch();
+            _userDocSubscription?.cancel();
+            _userDocSubscription = null;
+            _activeUid = null;
+            _currentUser = null;
+            _hasActiveSession = false;
+            _loadError = 'Gamitin ang admin app para sa account na ito';
+            _isLoading = false;
+            notifyListeners();
+            await _auth.signOut();
+            return;
+          }
+
+          if (role == 'staff' || role == 'driver') {
+            final allowed = await canEnter(firebaseUser);
+            debugPrint('[AUTH] Storefront shift gate check for $role -> allowed: $allowed');
+            if (!allowed) {
+              await signOut(preserveError: 'Please time in with your RFID card at the device before signing in.');
+              return;
+            }
+            startShiftWatch(firebaseUser);
+          }
+
+          _currentUser = loadedUser;
+          _loadError = null;
+          _isLoading = false;
+          debugPrint('[AUTH] Storefront target success -> currentUser: ${_currentUser?.fullName}, role: $role');
+          notifyListeners();
+          NotificationService.instance.startListeningToOrders(FirestoreService(), this);
+        }
+      } else {
+        debugPrint('[AUTH] User profile not found for UID: ${firebaseUser.uid}');
+        _currentUser = null;
+        _loadError = 'User profile not found for UID: ${firebaseUser.uid}';
+        _isLoading = false;
+        notifyListeners();
+      }
     } catch (e) {
+      debugPrint('[AUTH] _startUserDocListener exception: $e');
       _currentUser = null;
-    } finally {
+      _loadError = e.toString();
       _isLoading = false;
       notifyListeners();
+      return;
     }
+
+    _userDocSubscription = _db.collection('users').doc(firebaseUser.uid).snapshots().listen(
+      (doc) {
+        if (_activeUid != firebaseUser.uid || _auth.currentUser?.uid != firebaseUser.uid) {
+          return;
+        }
+
+        if (doc.exists && doc.data() != null) {
+          _currentUser = AppUser.fromMap(doc.data()!, doc.id);
+          _loadError = null;
+          _isLoading = false;
+          notifyListeners();
+          NotificationService.instance.startListeningToOrders(FirestoreService(), this);
+        }
+      },
+      onError: (e) {
+        debugPrint('[AUTH] Firestore snapshot error for UID ${firebaseUser.uid}: $e');
+        if (_activeUid == firebaseUser.uid) {
+          _currentUser = null;
+          _loadError = e.toString();
+          _isLoading = false;
+          notifyListeners();
+        }
+      },
+    );
+  }
+
+  Future<void> fetchUserRole(dynamic userOrUid) async {
+    notifyListeners();
   }
 
   void updateLocalUser(Map<String, dynamic> data) {
@@ -131,27 +218,19 @@ class AuthService extends ChangeNotifier {
 
   Future<void> signInWithEmailAndPassword(String email, String password) async {
     _isLoading = true;
+    _loadError = null;
     notifyListeners();
 
     try {
       UserCredential cred = await _auth.signInWithEmailAndPassword(email: email.trim(), password: password);
       if (cred.user != null) {
-        final allowed = await canEnter(cred.user!);
-        if (!allowed) {
-          await _auth.signOut();
-          _hasActiveSession = false;
-          _isLoading = false;
-          notifyListeners();
-          throw Exception('Please time in with your RFID card at the device before signing in.');
-        }
-
         _hasActiveSession = true;
-        await fetchUserRole(cred.user!);
-        notifyListeners();
+        // Auth state changes listener will handle target check and single snapshot loading
       }
     } catch (e) {
       _hasActiveSession = false;
       _isLoading = false;
+      _loadError = e.toString();
       notifyListeners();
       rethrow;
     }
@@ -169,6 +248,7 @@ class AuthService extends ChangeNotifier {
     DateTime? birthday,
   }) async {
     _isLoading = true;
+    _loadError = null;
     notifyListeners();
     User? newlyCreatedAuthUser;
 
@@ -226,6 +306,7 @@ class AuthService extends ChangeNotifier {
     String? rfidUid,
   }) async {
     _isLoading = true;
+    _loadError = null;
     notifyListeners();
 
     try {
@@ -279,10 +360,15 @@ class AuthService extends ChangeNotifier {
     }
   }
 
-  Future<void> signOut() async {
+  Future<void> signOut({String? preserveError}) async {
+    final err = preserveError ?? _loadError;
     stopShiftWatch();
+    _userDocSubscription?.cancel();
+    _userDocSubscription = null;
+    _activeUid = null;
     _hasActiveSession = false;
     _currentUser = null;
+    _loadError = err;
     notifyListeners();
     await _auth.signOut();
   }

@@ -53,6 +53,45 @@ class _ShippingAddressesScreenState extends State<ShippingAddressesScreen> {
     final user = authService.currentUser;
     if (user == null) return;
 
+    final bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) {
+        final p = Pal.of(context);
+        return AlertDialog(
+          backgroundColor: p.surface,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Row(
+            children: [
+              const Icon(Icons.warning_amber_rounded, color: Colors.redAccent, size: 24),
+              const SizedBox(width: 8),
+              Text('Delete Address?', style: TextStyle(color: p.text, fontWeight: FontWeight.bold, fontSize: 18)),
+            ],
+          ),
+          content: Text(
+            'Are you sure you want to remove "$address"?',
+            style: TextStyle(color: p.sub, fontSize: 14),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogCtx, false),
+              child: Text('Cancel', style: TextStyle(color: p.faint)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.redAccent,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              onPressed: () => Navigator.pop(dialogCtx, true),
+              child: const Text('Delete', style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirm != true) return;
+
     try {
       final updatedAddresses = List<String>.from(user.shippingAddresses)..remove(address);
       await firestoreService.updateUserProfile(user.uid, {'shippingAddresses': updatedAddresses});

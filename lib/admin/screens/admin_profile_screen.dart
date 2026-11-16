@@ -9,6 +9,7 @@ import '../../core/components/profile_picture_picker.dart';
 import '../../core/utils/validators.dart';
 import '../components/app_back_button.dart';
 import '../../core/theme/hardware_theme.dart';
+import '../../core/components/top_notification.dart';
 import '../../core/components/skeleton_loader.dart';
 import '../components/admin_scaffold.dart';
 
@@ -29,22 +30,32 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
   String _gender = 'Male';
   bool _isSaving = false;
   bool _isLoading = true;
+  bool _initialized = false;
 
   @override
   void initState() {
     super.initState();
-    Future.delayed(const Duration(milliseconds: 600), () {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-    });
-    final user = Provider.of<AuthService>(context, listen: false).currentUser;
-    _fNameCtrl = TextEditingController(text: user?.firstName);
-    _lNameCtrl = TextEditingController(text: user?.lastName);
-    _phoneCtrl = TextEditingController(text: user?.phone);
-    _addressCtrl = TextEditingController(text: user?.address);
-    _gender = ['Male', 'Female'].contains(user?.gender) ? user!.gender! : 'Male';
-    _emergencyCtrl = TextEditingController(text: user?.emergencyContact);
+    _fNameCtrl = TextEditingController();
+    _lNameCtrl = TextEditingController();
+    _phoneCtrl = TextEditingController();
+    _addressCtrl = TextEditingController();
+    _emergencyCtrl = TextEditingController();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final auth = Provider.of<AuthService>(context);
+    final user = auth.currentUser;
+    if (user != null && !_initialized) {
+      _fNameCtrl.text = user.firstName;
+      _lNameCtrl.text = user.lastName;
+      _phoneCtrl.text = user.phone;
+      _addressCtrl.text = user.address;
+      _gender = ['Male', 'Female'].contains(user.gender) ? user.gender! : 'Male';
+      _emergencyCtrl.text = user.emergencyContact;
+      _initialized = true;
+    }
   }
 
   @override
@@ -118,18 +129,11 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
   }
 
   void _showSnack(String msg, Color color) {
-    final p = Pal.of(context);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(msg, style: TextStyle(color: p.text, fontWeight: FontWeight.w600)),
-        backgroundColor: p.surface,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14),
-          side: BorderSide(color: color.withOpacity(0.6)),
-        ),
-      ),
-    );
+    if (color == Colors.redAccent) {
+      showTopError(context, msg);
+    } else {
+      showTopSuccess(context, msg);
+    }
   }
 
   Widget _glass({
@@ -197,7 +201,16 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
     final user = auth.currentUser;
     final p = Pal.of(context);
 
-    if (_isLoading || auth.isLoading || user == null) {
+    if (auth.loadError != null) {
+      return Scaffold(
+        backgroundColor: Colors.transparent,
+        body: Center(
+          child: Text('Error loading profile: ${auth.loadError}', style: const TextStyle(color: Colors.redAccent, fontSize: 16)),
+        ),
+      );
+    }
+
+    if (auth.isLoading || user == null) {
       return Scaffold(
         backgroundColor: Colors.transparent,
         body: ListView.builder(
@@ -314,6 +327,8 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
                               controller: _addressCtrl,
                               style: TextStyle(color: p.text),
                               decoration: _hwInputDecoration(context, 'Home Address'),
+                              validator: Validators.validateAddress,
+                              inputFormatters: [LengthLimitingTextInputFormatter(50)],
                             ),
                             const SizedBox(height: 20),
                             Row(

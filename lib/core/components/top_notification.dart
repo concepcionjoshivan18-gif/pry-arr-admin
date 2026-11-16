@@ -176,3 +176,11 @@ class _TopToastNotificationState extends State<TopToastNotification>
     );
   }
 }
+
+void showTopError(BuildContext context, String message, {Duration duration = const Duration(seconds: 3)}) {
+  showTopNotification(context, message, isError: true, isSuccess: false, duration: duration);
+}
+
+void showTopSuccess(BuildContext context, String message, {Duration duration = const Duration(seconds: 3)}) {
+  showTopNotification(context, message, isError: false, isSuccess: true, duration: duration);
+}
