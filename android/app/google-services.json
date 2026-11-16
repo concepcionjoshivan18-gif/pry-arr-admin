@@ -1,0 +1,54 @@
+{
+  "project_info": {
+    "project_number": "168859218994",
+    "project_id": "pry-arr",
+    "storage_bucket": "pry-arr.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:168859218994:android:081946d035748e8096782b",
+        "android_client_info": {
+          "package_name": "com.concep.pry_arr"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDQ6XiB59AmDFYI7Sid19TGhzixOvrE2y8"
+        },
+        {
+          "current_key": "AIzaSyCc3TtiqCgyk-nbCocOXFhiis400U0dZ6Q"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:168859218994:android:e99f2488f20e563896782b",
+        "android_client_info": {
+          "package_name": "com.example.pry_arr"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDQ6XiB59AmDFYI7Sid19TGhzixOvrE2y8"
+        },
+        {
+          "current_key": "AIzaSyCc3TtiqCgyk-nbCocOXFhiis400U0dZ6Q"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

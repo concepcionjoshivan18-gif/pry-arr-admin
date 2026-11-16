@@ -1,0 +1,5 @@
+- [ ] Add `firebase_messaging` and `flutter_local_notifications` to pubspec.yaml
+- [ ] Create `NotificationService` for FCM and local sound notifications
+- [ ] Initialize `NotificationService` in main entry points
+- [ ] Configure Android Manifest for high-priority notification channels and default sound
+- [ ] Verify build and test notification flow
