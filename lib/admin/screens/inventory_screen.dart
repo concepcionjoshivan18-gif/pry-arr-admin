@@ -496,7 +496,12 @@ class _ItemEditDialogState extends State<_ItemEditDialog> {
                           controller: _nameCtrl,
                           style: TextStyle(color: p.text),
                           decoration: _hwInputDecoration(context, 'Item Name'),
-                          validator: (v) => v!.isEmpty ? 'Required' : null,
+                          inputFormatters: [LengthLimitingTextInputFormatter(50)],
+                          validator: (v) {
+                            if (v == null || v.trim().isEmpty) return 'Required';
+                            if (v.trim().length > 50) return 'Max 50 characters';
+                            return null;
+                          },
                         ),
                         const SizedBox(height: 16),
                         StreamBuilder<List<CategoryModel>>(
@@ -578,7 +583,8 @@ class _ItemEditDialogState extends State<_ItemEditDialog> {
                                     controller: v.nameCtrl,
                                     style: TextStyle(color: p.text),
                                     decoration: _hwInputDecoration(context, 'Type Name', hint: 'e.g. 1/4 inch'),
-                                    validator: (val) => (val == null || val.trim().length < 50) ? 'Must be at least 50 chars' : null,
+                                    inputFormatters: [LengthLimitingTextInputFormatter(50)],
+                                    validator: (val) => (val != null && val.trim().length > 50) ? 'Max 50 characters' : null,
                                   ),
                                 ),
                                 const SizedBox(width: 12),
@@ -589,8 +595,11 @@ class _ItemEditDialogState extends State<_ItemEditDialog> {
                                     style: TextStyle(color: p.text),
                                     decoration: _hwInputDecoration(context, 'Qty'),
                                     keyboardType: TextInputType.number,
-                                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                                    validator: (val) => (val == null || val.trim().length < 6) ? 'At least 6 digits' : null,
+                                    inputFormatters: [
+                                      FilteringTextInputFormatter.digitsOnly,
+                                      LengthLimitingTextInputFormatter(6),
+                                    ],
+                                    validator: (val) => (val != null && val.trim().length > 6) ? 'Max 6 digits' : null,
                                   ),
                                 ),
                                 const SizedBox(width: 12),
@@ -601,8 +610,11 @@ class _ItemEditDialogState extends State<_ItemEditDialog> {
                                     style: TextStyle(color: p.text),
                                     decoration: _hwInputDecoration(context, 'Price'),
                                     keyboardType: TextInputType.number,
-                                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                                    validator: (val) => (val == null || val.trim().length < 6) ? 'At least 6 digits' : null,
+                                    inputFormatters: [
+                                      FilteringTextInputFormatter.digitsOnly,
+                                      LengthLimitingTextInputFormatter(6),
+                                    ],
+                                    validator: (val) => (val != null && val.trim().length > 6) ? 'Max 6 digits' : null,
                                   ),
                                 ),
                                 IconButton(
