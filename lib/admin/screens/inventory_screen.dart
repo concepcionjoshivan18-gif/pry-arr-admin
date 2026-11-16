@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../core/services/firestore_service.dart';
 import '../../core/models/inventory_item.dart';
@@ -11,6 +12,7 @@ import '../../core/services/storage_service.dart';
 import '../../core/theme/hardware_theme.dart';
 import '../../core/components/skeleton_loader.dart';
 import '../components/admin_scaffold.dart';
+import 'package:flutter/services.dart';
 
 Widget _hwGlass({
   required Widget child,
@@ -514,30 +516,50 @@ class _ItemEditDialogState extends State<_ItemEditDialog> {
                           },
                         ),
                         const SizedBox(height: 16),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: TextFormField(
-                                controller: _imageUrlCtrl,
-                                style: TextStyle(color: p.text),
-                                decoration: _hwInputDecoration(context, 'Product Image URLs (comma-separated or upload)'),
-                              ),
+                        GestureDetector(
+                          onTap: _isUploadingImage ? null : _pickAndUploadImage,
+                          child: Container(
+                            width: double.infinity,
+                            height: 120,
+                            decoration: BoxDecoration(
+                              color: p.fill,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: p.line),
                             ),
-                            const SizedBox(width: 12),
-                            _isUploadingImage
-                                ? const SizedBox(width: 48, height: 48, child: Center(child: CircularProgressIndicator(color: hwOrange)))
-                                : ElevatedButton.icon(
-                                    onPressed: _pickAndUploadImage,
-                                    icon: const Icon(Icons.upload_file, size: 16),
-                                    label: const Text('Upload'),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: p.fill,
-                                      foregroundColor: p.text,
-                                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                                    ),
-                                  ),
-                          ],
+                            child: _isUploadingImage
+                                ? const Center(child: CircularProgressIndicator(color: hwOrange))
+                                : (_imageUrlCtrl.text.isNotEmpty
+                                    ? ClipRRect(
+                                        borderRadius: BorderRadius.circular(16),
+                                        child: Stack(
+                                          fit: StackFit.expand,
+                                          children: [
+                                            Image.network(
+                                              _imageUrlCtrl.text.split(',').first.trim(),
+                                              fit: BoxFit.cover,
+                                              errorBuilder: (_, __, ___) => const Center(child: Icon(Icons.broken_image, color: Colors.white54)),
+                                            ),
+                                            Positioned(
+                                              bottom: 8,
+                                              right: 8,
+                                              child: Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                                decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(8)),
+                                                child: const Text('Change Image', style: TextStyle(color: Colors.white, fontSize: 12)),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      )
+                                    : Column(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: const [
+                                          Icon(Icons.add_photo_alternate_rounded, color: hwOrange, size: 32),
+                                          SizedBox(height: 8),
+                                          Text('Tap to select & upload product image from device', style: TextStyle(color: Colors.white70, fontSize: 13)),
+                                        ],
+                                      )),
+                          ),
                         ),
                         const SizedBox(height: 24),
                         Text('Types, Stock & Pricing', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: p.text)),
