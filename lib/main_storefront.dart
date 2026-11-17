@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import 'firebase_options.dart';
@@ -10,30 +11,91 @@ import 'core/services/notification_service.dart';
 import 'core/providers/cart_provider.dart';
 import 'routing/storefront_router.dart';
 import 'core/theme/hardware_theme.dart';
+import 'core/components/boot_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  try {
-    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-    if (kIsWeb) {
-      FirebaseFirestore.instance.settings = const Settings(persistenceEnabled: false);
-    } else {
-      FirebaseFirestore.instance.settings = const Settings(
-        persistenceEnabled: true,
-        cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
+  runApp(const StorefrontRoot());
+}
+
+class StorefrontRoot extends StatefulWidget {
+  const StorefrontRoot({super.key});
+
+  @override
+  State<StorefrontRoot> createState() => _StorefrontRootState();
+}
+
+class _StorefrontRootState extends State<StorefrontRoot> {
+  bool _ready = false;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_ready) {
+      return MaterialApp(
+        debugShowCheckedModeBanner: false,
+        home: BootScreen(
+          steps: [
+            BootStep(
+              label: 'Connecting to server...',
+              weight: 3,
+              run: () async {
+                if (Firebase.apps.isEmpty) {
+                  await Firebase.initializeApp(
+                    options: DefaultFirebaseOptions.currentPlatform,
+                  );
+                }
+                try {
+                  await FirebaseAuth.instance.signOut();
+                } catch (_) {}
+                if (kIsWeb) {
+                  try {
+                    FirebaseFirestore.instance.settings =
+                        const Settings(persistenceEnabled: false);
+                  } catch (_) {
+                    // Naitakda na, ituloy lang
+                  }
+                } else {
+                  try {
+                    FirebaseFirestore.instance.settings = const Settings(
+                      persistenceEnabled: true,
+                      cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
+                    );
+                  } catch (_) {}
+                }
+              },
+            ),
+            BootStep(
+              label: 'Loading notifications...',
+              weight: 1,
+              run: () async {
+                try {
+                  await NotificationService.instance.initialize();
+                } catch (_) {}
+              },
+            ),
+            BootStep(
+              label: 'Checking session...',
+              weight: 2,
+              run: () async {
+                await FirebaseAuth.instance.authStateChanges().first;
+              },
+            ),
+          ],
+          onDone: () => setState(() => _ready = true),
+        ),
       );
     }
-  } catch (e) {
-    debugPrint('Firebase init: $e');
-  }
 
-  try {
-    await NotificationService.instance.initialize();
-  } catch (e) {
-    debugPrint('Notification init: $e');
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider<AuthService>(create: (_) => AuthService(target: AppTarget.storefront)),
+        Provider<FirestoreService>(create: (_) => FirestoreService()),
+        ChangeNotifierProvider<CartProvider>(create: (_) => CartProvider()),
+        ChangeNotifierProvider<ThemeController>(create: (_) => ThemeController()),
+      ],
+      child: const PryArrStorefrontApp(),
+    );
   }
-
-  runApp(const PryArrStorefrontApp());
 }
 
 class PryArrStorefrontApp extends StatelessWidget {
@@ -42,17 +104,18 @@ class PryArrStorefrontApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MultiProvider(
-      providers: [
-        ChangeNotifierProvider<AuthService>.value(
-          value: authService ?? AuthService(target: AppTarget.storefront),
-        ),
-        Provider<FirestoreService>(create: (_) => FirestoreService()),
-        ChangeNotifierProvider<CartProvider>(create: (_) => CartProvider()),
-        ChangeNotifierProvider<ThemeController>(create: (_) => ThemeController()),
-      ],
-      child: const StorefrontMaterialEntry(),
-    );
+    if (authService != null) {
+      return MultiProvider(
+        providers: [
+          ChangeNotifierProvider<AuthService>.value(value: authService!),
+          Provider<FirestoreService>(create: (_) => FirestoreService()),
+          ChangeNotifierProvider<CartProvider>(create: (_) => CartProvider()),
+          ChangeNotifierProvider<ThemeController>(create: (_) => ThemeController()),
+        ],
+        child: const StorefrontMaterialEntry(),
+      );
+    }
+    return const StorefrontMaterialEntry();
   }
 }
 
@@ -83,15 +146,15 @@ class _StorefrontMaterialEntryState extends State<StorefrontMaterialEntry> {
       themeMode: themeController.themeMode,
       theme: ThemeData(
         useMaterial3: true,
-        brightness: Brightness.dark,
-        colorScheme: ColorScheme.fromSeed(seedColor: hwOrange, brightness: Brightness.dark),
-        scaffoldBackgroundColor: Colors.transparent,
+        brightness: Brightness.light,
+        colorScheme: ColorScheme.fromSeed(seedColor: hwOrange, brightness: Brightness.light),
+        scaffoldBackgroundColor: const Color(0xFFF8F5F0),
       ),
       darkTheme: ThemeData(
         useMaterial3: true,
         brightness: Brightness.dark,
         colorScheme: ColorScheme.fromSeed(seedColor: hwOrange, brightness: Brightness.dark),
-        scaffoldBackgroundColor: Colors.transparent,
+        scaffoldBackgroundColor: hwCharcoal,
       ),
       routerConfig: _storefrontRouter.router,
       builder: (context, child) {

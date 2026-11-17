@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../core/services/auth_service.dart';
 import '../core/models/order.dart';
+import '../core/components/top_notification.dart';
 import '../core/models/inventory_item.dart';
 import '../core/models/cart_item.dart';
 import '../app/screens/login_screen.dart';
@@ -190,7 +192,7 @@ class StorefrontRouter {
                     ),
                     const SizedBox(height: 24),
                     ElevatedButton.icon(
-                      onPressed: () => authService.signOut(),
+                      onPressed: () => confirmAndSignOut(context, authService),
                       icon: const Icon(Icons.logout_rounded),
                       label: const Text('Sign Out'),
                       style: ElevatedButton.styleFrom(
@@ -212,20 +214,35 @@ class StorefrontRouter {
       final isLoggingIn = state.matchedLocation == '/login';
       final isRegistering = state.matchedLocation == '/register';
 
-      if (authService.loadError != null) {
-        if (state.matchedLocation == '/login') return null;
+      if (authService.isLoading || authService.isSigningIn) {
+        return null;
+      }
+
+      bool isLoggedOut = false;
+      try {
+        if (Firebase.apps.isNotEmpty) {
+          isLoggedOut = FirebaseAuth.instance.currentUser == null;
+        }
+      } catch (_) {}
+
+      if (isLoggedOut) {
+        final loc = state.matchedLocation;
+        if (loc == '/customer/checkout' || loc == '/landing' || loc == '/' || loc == '/login' || loc == '/register') {
+          return null;
+        }
         return '/login';
       }
 
-      if (authService.isLoading) {
-        return null;
+      if (authService.loadError != null) {
+        if (state.matchedLocation == '/login') return null;
+        return '/login';
       }
 
       final user = authService.currentUser;
 
       if (user == null) {
         if (state.matchedLocation.startsWith('/customer/checkout')) return null;
-        return (isLanding || isLoggingIn || isRegistering) ? null : '/landing';
+        return (isLanding || isLoggingIn || isRegistering) ? null : '/login';
       }
 
       if (user.status == 'Inactive') return '/login';

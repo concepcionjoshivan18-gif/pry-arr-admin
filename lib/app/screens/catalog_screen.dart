@@ -8,6 +8,7 @@ import '../../core/services/auth_service.dart';
 import '../../core/theme/hardware_theme.dart';
 import '../../core/utils/item_image_helper.dart';
 import '../../core/components/skeleton_loader.dart';
+import '../../core/components/top_notification.dart';
 
 const cats = [
   ('All', Icons.apps_rounded),
@@ -49,14 +50,15 @@ class _CatalogScreenState extends State<CatalogScreen> {
   int sort = 0, page = 1;
   final favs = <String>{};
 
-  bool _isLoading = true;
+  late final Stream<List<InventoryItem>> _inventoryStream;
+  late final Stream<List<ReviewModel>> _reviewsStream;
 
   @override
   void initState() {
     super.initState();
-    Future.delayed(const Duration(milliseconds: 600), () {
-      if (mounted) setState(() => _isLoading = false);
-    });
+    final fs = Provider.of<FirestoreService>(context, listen: false);
+    _inventoryStream = fs.streamInventory();
+    _reviewsStream = fs.streamAllReviews();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final user = Provider.of<AuthService>(context, listen: false).currentUser;
       if (user != null && user.favorites.isNotEmpty) {
@@ -254,7 +256,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
                   ),
                   IconButton(
                     icon: Icon(Icons.logout, color: p.faint),
-                    onPressed: () => authService.signOut(),
+                    onPressed: () => confirmAndSignOut(context, authService),
                   ),
                 ],
               ),
@@ -313,13 +315,18 @@ class _CatalogScreenState extends State<CatalogScreen> {
             // ---- StreamBuilders for Inventory & Reviews below search bar
             Expanded(
               child: StreamBuilder<List<InventoryItem>>(
-                stream: firestoreService.streamInventory(),
+                stream: _inventoryStream,
                 builder: (context, invSnapshot) {
-                  if (!invSnapshot.hasData) {
+                  if (invSnapshot.connectionState == ConnectionState.waiting && !invSnapshot.hasData) {
                     return ListView.builder(
                       padding: const EdgeInsets.all(20),
                       itemCount: 4,
                       itemBuilder: (_, __) => const SkeletonCard(),
+                    );
+                  }
+                  if (invSnapshot.hasError) {
+                    return Center(
+                      child: Text('Error loading catalog: ${invSnapshot.error}', style: ts(p.danger, 14)),
                     );
                   }
                   List<InventoryItem> items = invSnapshot.data ?? [];
@@ -329,7 +336,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
                   }).toList();
 
                   return StreamBuilder<List<ReviewModel>>(
-                    stream: firestoreService.streamAllReviews(),
+                    stream: _reviewsStream,
                     builder: (context, reviewSnapshot) {
                       final allReviews = reviewSnapshot.data ?? [];
 
@@ -496,7 +503,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
                     // ---- Pagination
                     SliverToBoxAdapter(
                       child: Padding(
-                        padding: const EdgeInsets.fromLTRB(20, 16, 20, 110),
+                        padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
                         child: totalPages <= 1
                             ? const SizedBox.shrink()
                             : Column(children: [

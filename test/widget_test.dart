@@ -19,6 +19,9 @@ class MockAuthService extends ChangeNotifier implements AuthService {
   bool get isLoading => false;
 
   @override
+  bool get isSigningIn => false;
+
+  @override
   String? get loadError => null;
 
   @override
@@ -44,6 +47,9 @@ class MockAuthService extends ChangeNotifier implements AuthService {
     String? businessName,
     required bool marketingOptIn,
     DateTime? birthday,
+    String? address,
+    String? gender,
+    String? emergencyContact,
   }) async {}
 
   @override

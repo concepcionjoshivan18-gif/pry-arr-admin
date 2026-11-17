@@ -54,11 +54,6 @@ class LogoBadge extends StatelessWidget {
       height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        gradient: const LinearGradient(
-          colors: [AppColors.orange, AppColors.orangeDark],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
         boxShadow: [
           BoxShadow(
             color: AppColors.orange.withAlpha(110),
@@ -67,7 +62,9 @@ class LogoBadge extends StatelessWidget {
           ),
         ],
       ),
-      child: Icon(Icons.hardware, color: Colors.white, size: size * 0.5),
+      child: ClipOval(
+        child: Image.asset('assets/icons/badge.png', fit: BoxFit.cover),
+      ),
     );
   }
 }

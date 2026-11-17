@@ -1,14 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:intl/intl.dart';
 import 'dart:math' as math;
 import '../../core/services/firestore_service.dart';
 import '../../core/models/order.dart';
 import '../../core/theme/hardware_theme.dart';
 import '../../core/utils/responsive.dart';
 import '../../core/components/responsive_page_header.dart';
-import '../../core/config/payment_policy.dart';
 import '../../core/components/skeleton_loader.dart';
+import '../../core/components/top_notification.dart';
 import 'pending_payment_detail_screen.dart';
 
 class PendingPaymentsScreen extends StatefulWidget {
@@ -20,6 +19,7 @@ class PendingPaymentsScreen extends StatefulWidget {
 
 class _PendingPaymentsScreenState extends State<PendingPaymentsScreen> {
   bool _isLoading = true;
+  final Set<String> _selectedOrderIds = {};
 
   @override
   void initState() {
@@ -27,6 +27,149 @@ class _PendingPaymentsScreenState extends State<PendingPaymentsScreen> {
     Future.delayed(const Duration(milliseconds: 600), () {
       if (mounted) setState(() => _isLoading = false);
     });
+  }
+
+  void _toggleSelectAll(List<OrderModel> pendingOrders) {
+    setState(() {
+      if (_selectedOrderIds.length == pendingOrders.length) {
+        _selectedOrderIds.clear();
+      } else {
+        _selectedOrderIds.clear();
+        for (var o in pendingOrders) {
+          _selectedOrderIds.add(o.id);
+        }
+      }
+    });
+  }
+
+  void _toggleSelectOrder(String orderId) {
+    setState(() {
+      if (_selectedOrderIds.contains(orderId)) {
+        _selectedOrderIds.remove(orderId);
+      } else {
+        _selectedOrderIds.add(orderId);
+      }
+    });
+  }
+
+  void _confirmDeleteOrder(BuildContext context, FirestoreService fs, OrderModel order) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Order Record'),
+        content: Text('Are you sure you want to delete Order #${order.id.substring(0, math.min(6, order.id.length))}? This action cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              try {
+                await fs.deleteOrder(order.id);
+                if (mounted) {
+                  showTopSuccess(context, 'Order record deleted.');
+                }
+              } catch (e) {
+                if (mounted) {
+                  showTopError(context, 'Error deleting order: $e');
+                }
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.redAccent,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmBatchDelete(BuildContext context, FirestoreService fs) {
+    if (_selectedOrderIds.isEmpty) return;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Delete ${_selectedOrderIds.length} Order Records'),
+        content: Text('Are you sure you want to delete ${_selectedOrderIds.length} selected orders? This action cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              try {
+                for (var id in _selectedOrderIds) {
+                  await fs.deleteOrder(id);
+                }
+                setState(() {
+                  _selectedOrderIds.clear();
+                });
+                if (mounted) {
+                  showTopSuccess(context, 'Selected order records deleted.');
+                }
+              } catch (e) {
+                if (mounted) {
+                  showTopError(context, 'Error deleting orders: $e');
+                }
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.redAccent,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Delete All'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmBatchApprove(BuildContext context, FirestoreService fs) {
+    if (_selectedOrderIds.isEmpty) return;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Approve ${_selectedOrderIds.length} Payments'),
+        content: Text('Are you sure you want to approve and mark ${_selectedOrderIds.length} selected payments as paid?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              try {
+                for (var id in _selectedOrderIds) {
+                  await fs.updateOrderPaymentStatus(id, 'paid');
+                }
+                setState(() {
+                  _selectedOrderIds.clear();
+                });
+                if (mounted) {
+                  showTopSuccess(context, 'Selected payments approved successfully.');
+                }
+              } catch (e) {
+                if (mounted) {
+                  showTopError(context, 'Error approving payments: $e');
+                }
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: hwOrange,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Approve All'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -68,27 +211,35 @@ class _PendingPaymentsScreenState extends State<PendingPaymentsScreen> {
                         title: 'Pending Payments Review',
                         breadcrumb: 'Admin / Pending GCash Receipts & Manual Review',
                       ),
-                      const SizedBox(height: 16),
-                      Container(
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          color: hwYellow.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: hwYellow.withValues(alpha: 0.4)),
-                        ),
-                        child: Row(
+                      if (pendingOrders.isNotEmpty) ...[
+                        const SizedBox(height: 16),
+                        Row(
                           children: [
-                            const Icon(Icons.info_outline_rounded, color: hwYellow, size: 20),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Text(
-                                'High-Value Hold Threshold: ₱${highValueHoldThreshold.toStringAsFixed(2)}. Orders at or above this amount require manual confirmation before fulfillment.',
-                                style: ts(p.text, 12, FontWeight.w600),
-                              ),
+                            Checkbox(
+                              value: _selectedOrderIds.length == pendingOrders.length && pendingOrders.isNotEmpty,
+                              activeColor: hwOrange,
+                              onChanged: (_) => _toggleSelectAll(pendingOrders),
                             ),
+                            Text('Select All (${pendingOrders.length})', style: ts(p.text, 13, FontWeight.w700)),
+                            const Spacer(),
+                            if (_selectedOrderIds.isNotEmpty) ...[
+                              ElevatedButton.icon(
+                                onPressed: () => _confirmBatchApprove(context, firestoreService),
+                                icon: const Icon(Icons.check_circle_rounded, size: 16),
+                                label: Text('Approve (${_selectedOrderIds.length})'),
+                                style: ElevatedButton.styleFrom(backgroundColor: hwOrange, foregroundColor: Colors.white),
+                              ),
+                              const SizedBox(width: 8),
+                              ElevatedButton.icon(
+                                onPressed: () => _confirmBatchDelete(context, firestoreService),
+                                icon: const Icon(Icons.delete_sweep_rounded, size: 16),
+                                label: Text('Delete (${_selectedOrderIds.length})'),
+                                style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, foregroundColor: Colors.white),
+                              ),
+                            ],
                           ],
                         ),
-                      ),
+                      ],
                     ],
                   ),
                 ),
@@ -113,26 +264,16 @@ class _PendingPaymentsScreenState extends State<PendingPaymentsScreen> {
                     delegate: SliverChildBuilderDelegate(
                       (context, index) {
                         final order = pendingOrders[index];
-                        final bool isHighValue = order.total >= highValueHoldThreshold;
                         final isMobile = Breakpoints.isMobile(context);
-
-                        final highValueBadge = Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: hwYellow.withValues(alpha: 0.2),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: hwYellow),
-                          ),
-                          child: Text('Hold: High Value', style: ts(hwYellow, 10, FontWeight.w800)),
-                        );
+                        final isSelected = _selectedOrderIds.contains(order.id);
 
                         return Container(
                           margin: const EdgeInsets.only(bottom: 16),
                           padding: EdgeInsets.all(isMobile ? 14 : 20),
                           decoration: BoxDecoration(
-                            color: p.surface,
+                            color: isSelected ? hwOrange.withValues(alpha: 0.08) : p.surface,
                             borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: p.line),
+                            border: Border.all(color: isSelected ? hwOrange : p.line, width: isSelected ? 1.5 : 1),
                             boxShadow: [
                               BoxShadow(color: p.shadow, blurRadius: 16, offset: const Offset(0, 8)),
                             ],
@@ -143,6 +284,12 @@ class _PendingPaymentsScreenState extends State<PendingPaymentsScreen> {
                               Row(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
+                                  Checkbox(
+                                    value: isSelected,
+                                    activeColor: hwOrange,
+                                    onChanged: (_) => _toggleSelectOrder(order.id),
+                                  ),
+                                  const SizedBox(width: 4),
                                   // Receipt Thumbnail
                                   ClipRRect(
                                     borderRadius: BorderRadius.circular(12),
@@ -164,20 +311,7 @@ class _PendingPaymentsScreenState extends State<PendingPaymentsScreen> {
                                     child: Column(
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
-                                        if (isMobile) ...[
-                                          Text('Order #${order.id.substring(0, math.min(6, order.id.length))}', style: ts(p.text, 14, FontWeight.w800)),
-                                          if (isHighValue) ...[
-                                            const SizedBox(height: 4),
-                                            highValueBadge,
-                                          ],
-                                        ] else
-                                          Row(
-                                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                            children: [
-                                              Text('Order #${order.id.substring(0, math.min(6, order.id.length))}', style: ts(p.text, 15, FontWeight.w800)),
-                                              if (isHighValue) highValueBadge,
-                                            ],
-                                          ),
+                                        Text('Order #${order.id.substring(0, math.min(6, order.id.length))}', style: ts(p.text, isMobile ? 14 : 15, FontWeight.w800)),
                                         const SizedBox(height: 4),
                                         Text('Customer: ${order.customerName}', style: ts(p.sub, isMobile ? 12 : 13, FontWeight.w600), maxLines: 1, overflow: TextOverflow.ellipsis),
                                         const SizedBox(height: 4),
@@ -194,21 +328,31 @@ class _PendingPaymentsScreenState extends State<PendingPaymentsScreen> {
                                       children: [
                                         Text('₱${order.total.toStringAsFixed(2)}', style: ts(p.amber, 18, FontWeight.w900)),
                                         const SizedBox(height: 8),
-                                        ElevatedButton(
-                                          onPressed: () {
-                                            Navigator.push(
-                                              context,
-                                              MaterialPageRoute(
-                                                builder: (context) => PendingPaymentDetailScreen(order: order),
+                                        Row(
+                                          children: [
+                                            IconButton(
+                                              icon: const Icon(Icons.delete_outline_rounded, color: hwRust, size: 20),
+                                              tooltip: 'Delete Order',
+                                              onPressed: () => _confirmDeleteOrder(context, firestoreService, order),
+                                            ),
+                                            const SizedBox(width: 4),
+                                            ElevatedButton(
+                                              onPressed: () {
+                                                Navigator.push(
+                                                  context,
+                                                  MaterialPageRoute(
+                                                    builder: (context) => PendingPaymentDetailScreen(order: order),
+                                                  ),
+                                                );
+                                              },
+                                              style: ElevatedButton.styleFrom(
+                                                backgroundColor: hwOrange,
+                                                foregroundColor: Colors.white,
+                                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                                               ),
-                                            );
-                                          },
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor: hwOrange,
-                                            foregroundColor: Colors.white,
-                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                          ),
-                                          child: const Text('Review', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                                              child: const Text('Review', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                                            ),
+                                          ],
                                         ),
                                       ],
                                     ),
@@ -223,25 +367,35 @@ class _PendingPaymentsScreenState extends State<PendingPaymentsScreen> {
                                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                   children: [
                                     Text('Total: ₱${order.total.toStringAsFixed(2)}', style: ts(p.amber, 15, FontWeight.w900)),
-                                    SizedBox(
-                                      height: 36,
-                                      child: ElevatedButton(
-                                        onPressed: () {
-                                          Navigator.push(
-                                            context,
-                                            MaterialPageRoute(
-                                              builder: (context) => PendingPaymentDetailScreen(order: order),
-                                            ),
-                                          );
-                                        },
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: hwOrange,
-                                          foregroundColor: Colors.white,
-                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                                    Row(
+                                      children: [
+                                        IconButton(
+                                          icon: const Icon(Icons.delete_outline_rounded, color: hwRust, size: 20),
+                                          tooltip: 'Delete Order',
+                                          onPressed: () => _confirmDeleteOrder(context, firestoreService, order),
                                         ),
-                                        child: const Text('Review', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                                      ),
+                                        const SizedBox(width: 4),
+                                        SizedBox(
+                                          height: 36,
+                                          child: ElevatedButton(
+                                            onPressed: () {
+                                              Navigator.push(
+                                                context,
+                                                MaterialPageRoute(
+                                                  builder: (context) => PendingPaymentDetailScreen(order: order),
+                                                ),
+                                              );
+                                            },
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: hwOrange,
+                                              foregroundColor: Colors.white,
+                                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                              padding: const EdgeInsets.symmetric(horizontal: 16),
+                                            ),
+                                            child: const Text('Review', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ],
                                 ),

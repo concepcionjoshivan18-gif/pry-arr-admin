@@ -103,9 +103,9 @@ class _HoverSidebarState extends State<HoverSidebar> {
                             ? Image.network(
                                 auth.currentUser!.profilePhoto!,
                                 fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) => const Icon(Icons.hardware_rounded, color: Colors.white, size: 24),
+                                errorBuilder: (_, __, ___) => Image.asset('assets/icons/badge.png', height: 24, fit: BoxFit.contain),
                               )
-                            : const Icon(Icons.hardware_rounded, color: Colors.white, size: 24),
+                            : Image.asset('assets/icons/badge.png', height: 24, fit: BoxFit.contain),
                       ),
                     ),
                     const SizedBox(width: 14),

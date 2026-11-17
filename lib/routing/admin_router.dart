@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import '../core/services/auth_service.dart';
 import '../core/theme/hardware_theme.dart';
+import '../core/components/top_notification.dart';
 import '../admin/components/admin_scaffold.dart';
 import '../admin/screens/dashboard_screen.dart';
 import '../admin/screens/inventory_screen.dart';
@@ -24,7 +26,7 @@ class AdminRouter {
 
   late final GoRouter router = GoRouter(
     refreshListenable: authService,
-    initialLocation: '/admin/dashboard',
+    initialLocation: '/login',
     routes: [
       GoRoute(
         path: '/login',
@@ -53,7 +55,7 @@ class AdminRouter {
                     ),
                     const SizedBox(height: 24),
                     ElevatedButton.icon(
-                      onPressed: () => auth.signOut(),
+                      onPressed: () => confirmAndSignOut(context, auth),
                       icon: const Icon(Icons.logout_rounded),
                       label: const Text('Sign Out'),
                       style: ElevatedButton.styleFrom(
@@ -131,6 +133,17 @@ class AdminRouter {
       if (authService.loadError != null) {
         if (state.matchedLocation == '/login') return null;
         return '/login';
+      }
+
+      bool isLoggedOut = false;
+      try {
+        if (Firebase.apps.isNotEmpty) {
+          isLoggedOut = FirebaseAuth.instance.currentUser == null;
+        }
+      } catch (_) {}
+
+      if (isLoggedOut) {
+        return state.matchedLocation == '/login' ? null : '/login';
       }
 
       if (authService.isLoading) {

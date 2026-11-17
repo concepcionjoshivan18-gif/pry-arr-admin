@@ -175,7 +175,7 @@ class _WalkInCounterScreenState extends State<WalkInCounterScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),
-            onPressed: () => authService.signOut(),
+            onPressed: () => confirmAndSignOut(context, authService),
             tooltip: 'Sign Out',
           ),
         ],

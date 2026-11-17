@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../core/services/firestore_service.dart';
 import '../../core/services/auth_service.dart';
 import '../../core/models/attendance.dart';
+import '../../core/components/top_notification.dart';
 import 'package:intl/intl.dart';
 
 class AttendanceScreen extends StatefulWidget {
@@ -116,7 +117,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),
-            onPressed: () => authService.signOut(),
+            onPressed: () => confirmAndSignOut(context, authService),
             tooltip: 'Sign Out',
           ),
         ],

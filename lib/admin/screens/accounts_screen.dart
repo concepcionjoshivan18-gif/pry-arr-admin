@@ -8,7 +8,6 @@ import '../../core/services/firestore_service.dart';
 import '../../core/services/auth_service.dart';
 import '../../core/models/app_user.dart';
 import '../../core/utils/validators.dart';
-import '../components/app_back_button.dart';
 import '../../core/components/pagination_controls.dart';
 import '../../core/utils/image_helper.dart';
 import '../../core/theme/hardware_theme.dart';
@@ -17,7 +16,6 @@ import '../../core/components/responsive_page_header.dart';
 import '../../core/components/responsive_action_button.dart';
 import '../../core/components/top_notification.dart';
 import '../../core/components/skeleton_loader.dart';
-import '../components/admin_scaffold.dart';
 
 class AccountsScreen extends StatefulWidget {
   const AccountsScreen({super.key});
@@ -171,15 +169,15 @@ class _AccountsScreenState extends State<AccountsScreen> {
                             u.email.toLowerCase().contains(query);
                       }).toList();
 
-                      final staff = filtered.where((u) => u.role == 'staff').toList();
-                      final customers = filtered.where((u) => u.role == 'customer').toList();
+                      final staff = filtered.where((u) => u.isStaff).toList();
+                      final customers = filtered.where((u) => u.role == 'customer' && !u.isStaff).toList();
 
                       return SingleChildScrollView(
                         padding: const EdgeInsets.all(24),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            _buildSectionHeader(context, 'Staff Accounts (${staff.length})', const Color(0xFF4FA3FF)),
+                            _buildSectionHeader(context, 'Staff & Driver Accounts (${staff.length})', const Color(0xFF4FA3FF)),
                             _PaginatedAccountTable(
                               users: staff,
                               firestoreService: firestoreService,
@@ -300,60 +298,63 @@ class _PaginatedAccountTableState extends State<_PaginatedAccountTable> {
         _glass(
           radius: 20,
           padding: EdgeInsets.zero,
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Theme(
-              data: Theme.of(context).copyWith(
-                dividerColor: p.line,
-                dataTableTheme: DataTableThemeData(dataTextStyle: TextStyle(color: p.text)),
-              ),
-              child: DataTable(
-                headingRowColor: WidgetStateProperty.all(p.fill),
-                headingTextStyle: TextStyle(color: p.faint, fontWeight: FontWeight.w800, fontSize: 12),
-                columns: const [
-                  DataColumn(label: Text('NAME')),
-                  DataColumn(label: Text('EMAIL')),
-                  DataColumn(label: Text('ROLE / INFO')),
-                  DataColumn(label: Text('STATUS')),
-                  DataColumn(label: Text('ACTIONS')),
-                ],
-                rows: pagedUsers
-                    .map((s) => DataRow(cells: [
-                  DataCell(Row(
-                    children: [
-                      if (s.profilePhoto != null && s.profilePhoto!.isNotEmpty && getAvatarImageProvider(s.profilePhoto) != null)
-                        CircleAvatar(radius: 14, backgroundImage: getAvatarImageProvider(s.profilePhoto))
-                      else
-                        CircleAvatar(
-                          radius: 14,
-                          backgroundColor: hwSteel,
-                          child: Text(
-                            s.firstName.isNotEmpty ? s.firstName[0] : 'U',
-                            style: const TextStyle(fontSize: 10, color: Colors.white),
-                          ),
-                        ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(s.fullName,
-                            style: TextStyle(fontWeight: FontWeight.bold, color: p.text),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis),
-                      ),
+          child: LayoutBuilder(
+            builder: (context, constraints) => SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minWidth: constraints.maxWidth),
+                child: Theme(
+                  data: Theme.of(context).copyWith(
+                    dividerColor: p.line,
+                    dataTableTheme: DataTableThemeData(dataTextStyle: TextStyle(color: p.text)),
+                  ),
+                  child: DataTable(
+                    headingRowColor: WidgetStateProperty.all(p.fill),
+                    headingTextStyle: TextStyle(color: p.faint, fontWeight: FontWeight.w800, fontSize: 12),
+                    columns: const [
+                      DataColumn(label: Text('NAME')),
+                      DataColumn(label: Text('EMAIL')),
+                      DataColumn(label: Text('ROLE / INFO')),
+                      DataColumn(label: Text('STATUS')),
+                      DataColumn(label: Text('ACTIONS')),
                     ],
-                  )),
-                  DataCell(ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 160),
-                    child: Text(s.email, style: TextStyle(color: p.sub), maxLines: 1, overflow: TextOverflow.ellipsis),
-                  )),
-                  DataCell(ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 120),
-                    child: Text(
-                      s.role == 'staff' ? (s.assignedRole ?? 'General') : '${s.loyaltyPoints} Pts',
-                      style: TextStyle(color: p.sub),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  )),
+                    rows: pagedUsers
+                        .map((s) => DataRow(cells: [
+                      DataCell(Row(
+                        children: [
+                          if (s.profilePhoto != null && s.profilePhoto!.isNotEmpty && getAvatarImageProvider(s.profilePhoto) != null)
+                            CircleAvatar(radius: 14, backgroundImage: getAvatarImageProvider(s.profilePhoto))
+                          else
+                            CircleAvatar(
+                              radius: 14,
+                              backgroundColor: hwSteel,
+                              child: Text(
+                                s.firstName.isNotEmpty ? s.firstName[0] : 'U',
+                                style: const TextStyle(fontSize: 10, color: Colors.white),
+                              ),
+                            ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(s.fullName,
+                                style: TextStyle(fontWeight: FontWeight.bold, color: p.text),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis),
+                          ),
+                        ],
+                      )),
+                      DataCell(ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 160),
+                        child: Text(s.email, style: TextStyle(color: p.sub), maxLines: 1, overflow: TextOverflow.ellipsis),
+                      )),
+                      DataCell(ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 120),
+                        child: Text(
+                          (s.role == 'staff' || s.role == 'driver') ? (s.assignedRole ?? s.role) : '${s.loyaltyPoints} Pts',
+                          style: TextStyle(color: p.sub),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      )),
                   DataCell(Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
@@ -409,6 +410,8 @@ class _PaginatedAccountTableState extends State<_PaginatedAccountTable> {
             ),
           ),
         ),
+      ),
+    ),
         Theme(
           data: Theme.of(context).copyWith(
             iconTheme: IconThemeData(color: p.faint),
@@ -457,6 +460,53 @@ class _AccountFormDialogState extends State<_AccountFormDialog> {
   String? _regSession; // id ng kasalukuyang registration session
   bool _saved = false; // true kapag matagumpay na na-save ang card
 
+  Widget _strengthMeter(Pal p) {
+    final strength = Validators.getPasswordStrength(_passCtrl.text);
+    final label = Validators.getPasswordStrengthLabel(strength);
+    final color = strength <= 0.34 ? Colors.redAccent : (strength <= 0.67 ? Colors.amber : p.ok);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 6),
+        Row(
+          children: [
+            for (int i = 0; i < 3; i++)
+              Expanded(
+                child: Container(
+                  height: 4,
+                  margin: EdgeInsets.only(right: i == 2 ? 0 : 4),
+                  decoration: BoxDecoration(
+                    color: (strength * 3).ceil() > i ? color : p.track,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+            const SizedBox(width: 8),
+            Text(label, style: ts(color, 11, FontWeight.w700)),
+          ],
+        ),
+      ],
+    );
+  }
+  String _normalizeDepartment(String? raw) {
+    final v = (raw ?? '').trim().toLowerCase();
+    return (v == 'driver' || v == 'delivery') ? 'Driver' : 'Staff';
+  }
+
+  String _friendlyError(dynamic e) {
+    final str = e.toString().toLowerCase();
+    if (str.contains('email-already-in-use') || str.contains('already in use')) {
+      return 'This email address is already registered to another account.';
+    }
+    if (str.contains('invalid-email')) {
+      return 'Please enter a valid email address.';
+    }
+    if (str.contains('weak-password')) {
+      return 'The password provided is too weak.';
+    }
+    return e.toString().replaceFirst('Exception: ', '').replaceFirst(RegExp(r'\[.*?\]\s*'), '');
+  }
+
   @override
   void initState() {
     super.initState();
@@ -469,7 +519,7 @@ class _AccountFormDialogState extends State<_AccountFormDialog> {
     _emergencyCtrl = TextEditingController(text: widget.user?.emergencyContact);
     _salaryCtrl = TextEditingController(text: widget.user?.basicSalary?.toString() ?? '0');
     _rfidUidCtrl = TextEditingController(text: widget.user?.rfidUid);
-    _assignedRole = widget.user?.assignedRole ?? 'Staff';
+    _assignedRole = _normalizeDepartment(widget.user?.assignedRole);
 
     if ((widget.user?.rfidUid == null || widget.user!.rfidUid!.isEmpty) && widget.user?.uid != null) {
       _loadAssignedCardFromCardsCollection(widget.user!.uid);
@@ -734,7 +784,10 @@ class _AccountFormDialogState extends State<_AccountFormDialog> {
                           child: TextFormField(
                             controller: _firstNameCtrl,
                             textCapitalization: TextCapitalization.words,
-                            inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r"[a-zA-ZÀ-ÖØ-öø-ÿ\s'\-]"))],
+                            inputFormatters: [
+                              LengthLimitingTextInputFormatter(50),
+                              FilteringTextInputFormatter.allow(RegExp(r"[a-zA-ZÀ-ÖØ-öø-ÿ .'\-]")),
+                            ],
                             style: TextStyle(color: p.text),
                             decoration: _fieldDecoration(context, 'First Name'),
                             validator: Validators.validateFirstName,
@@ -745,7 +798,10 @@ class _AccountFormDialogState extends State<_AccountFormDialog> {
                           child: TextFormField(
                             controller: _lastNameCtrl,
                             textCapitalization: TextCapitalization.words,
-                            inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r"[a-zA-ZÀ-ÖØ-öø-ÿ\s'\-]"))],
+                            inputFormatters: [
+                              LengthLimitingTextInputFormatter(50),
+                              FilteringTextInputFormatter.allow(RegExp(r"[a-zA-ZÀ-ÖØ-öø-ÿ .'\-]")),
+                            ],
                             style: TextStyle(color: p.text),
                             decoration: _fieldDecoration(context, 'Last Name'),
                             validator: Validators.validateLastName,
@@ -760,6 +816,10 @@ class _AccountFormDialogState extends State<_AccountFormDialog> {
                       decoration: _fieldDecoration(context, 'Email Address'),
                       enabled: !isEdit,
                       validator: Validators.validateEmail,
+                      inputFormatters: [
+                        LengthLimitingTextInputFormatter(100),
+                        FilteringTextInputFormatter.deny(RegExp(r'\s')),
+                      ],
                     ),
                     const SizedBox(height: 16),
                     if (!isEdit) ...[
@@ -775,13 +835,22 @@ class _AccountFormDialogState extends State<_AccountFormDialog> {
                         ),
                         obscureText: _obscurePass,
                         validator: Validators.validatePassword,
+                        inputFormatters: [
+                          LengthLimitingTextInputFormatter(64),
+                          FilteringTextInputFormatter.deny(RegExp(r'\s')),
+                        ],
+                        onChanged: (_) => setState(() {}),
                       ),
+                      _strengthMeter(p),
                       const SizedBox(height: 16),
                     ],
                     TextFormField(
                       controller: _phoneCtrl,
                       style: TextStyle(color: p.text),
-                      decoration: _fieldDecoration(context, 'Contact Number (09...)'),
+                      decoration: _fieldDecoration(context, 'Contact Number').copyWith(
+                        floatingLabelBehavior: FloatingLabelBehavior.never,
+                        hintText: 'e.g. 09123456789',
+                      ),
                       validator: Validators.validatePhone,
                       keyboardType: TextInputType.phone,
                       inputFormatters: [
@@ -793,7 +862,14 @@ class _AccountFormDialogState extends State<_AccountFormDialog> {
                     TextFormField(
                       controller: _addressCtrl,
                       style: TextStyle(color: p.text),
-                      decoration: _fieldDecoration(context, 'Home Address'),
+                      decoration: _fieldDecoration(context, 'Home Address').copyWith(
+                        floatingLabelBehavior: FloatingLabelBehavior.never,
+                        hintText: 'e.g. Pagsawitan, Santa Cruz, Laguna',
+                      ),
+                      validator: Validators.validateAddress,
+                      inputFormatters: [
+                        LengthLimitingTextInputFormatter(200),
+                      ],
                     ),
                     const SizedBox(height: 16),
                     Row(
@@ -807,6 +883,7 @@ class _AccountFormDialogState extends State<_AccountFormDialog> {
                             items: ['Male', 'Female']
                                 .map((g) => DropdownMenuItem(value: g, child: Text(g)))
                                 .toList(),
+                            validator: (v) => v == null || v.isEmpty ? 'Gender is required' : null,
                             onChanged: (v) => setState(() => _gender = v ?? 'Male'),
                           ),
                         ),
@@ -815,8 +892,11 @@ class _AccountFormDialogState extends State<_AccountFormDialog> {
                           child: TextFormField(
                             controller: _emergencyCtrl,
                             style: TextStyle(color: p.text),
-                            decoration: _fieldDecoration(context, 'Emergency Contact (09...)'),
-                            validator: Validators.validateEmergencyContact,
+                            decoration: _fieldDecoration(context, 'Emergency Contact').copyWith(
+                              floatingLabelBehavior: FloatingLabelBehavior.never,
+                              hintText: 'e.g. 09987654321',
+                            ),
+                            validator: (v) => Validators.validateEmergencyContact(v, isRequired: false, ownPhone: _phoneCtrl.text),
                             keyboardType: TextInputType.phone,
                             inputFormatters: [
                               LengthLimitingTextInputFormatter(11),
@@ -844,7 +924,17 @@ class _AccountFormDialogState extends State<_AccountFormDialog> {
                         controller: _salaryCtrl,
                         style: TextStyle(color: p.text),
                         decoration: _fieldDecoration(context, 'Hourly Rate / Salary (\u20b1)'),
-                        keyboardType: TextInputType.number,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        inputFormatters: [
+                          FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
+                        ],
+                        validator: (v) {
+                          if (v == null || v.trim().isEmpty) return 'Salary is required';
+                          final val = double.tryParse(v);
+                          if (val == null || val <= 0) return 'Must be greater than 0';
+                          if (val > 1000) return 'Maximum amount is 1000';
+                          return null;
+                        },
                       ),
                       const SizedBox(height: 16),
                       DropdownButtonFormField<String>(
@@ -855,6 +945,7 @@ class _AccountFormDialogState extends State<_AccountFormDialog> {
                         items: ['Staff', 'Driver']
                             .map((r) => DropdownMenuItem<String>(value: r, child: Text(r)))
                             .toList(),
+                        validator: (v) => v == null || v.isEmpty ? 'Department is required' : null,
                         onChanged: (String? v) {
                           if (v != null) {
                             setState(() {
@@ -910,8 +1001,8 @@ class _AccountFormDialogState extends State<_AccountFormDialog> {
                               if (_formKey.currentState!.validate()) {
                                 try {
                                   Map<String, dynamic> data = {
-                                    'firstName': formatCapitalized(_firstNameCtrl.text),
-                                    'lastName': formatCapitalized(_lastNameCtrl.text),
+                                    'firstName': Validators.capitalizeWords(_firstNameCtrl.text),
+                                    'lastName': Validators.capitalizeWords(_lastNameCtrl.text),
                                     'phone': _phoneCtrl.text.trim(),
                                     'address': _addressCtrl.text.trim(),
                                     'gender': _gender,
@@ -955,10 +1046,10 @@ class _AccountFormDialogState extends State<_AccountFormDialog> {
                                   } else {
                                     final rfid = _rfidUidCtrl.text.trim().toUpperCase();
                                     await authService.createStaffAccount(
-                                      email: _emailCtrl.text.trim(),
+                                      email: _emailCtrl.text.trim().toLowerCase(),
                                       password: _passCtrl.text.trim(),
-                                      firstName: formatCapitalized(_firstNameCtrl.text),
-                                      lastName: formatCapitalized(_lastNameCtrl.text),
+                                      firstName: Validators.capitalizeWords(_firstNameCtrl.text),
+                                      lastName: Validators.capitalizeWords(_lastNameCtrl.text),
                                       assignedRole: _assignedRole,
                                       basicSalary: double.tryParse(_salaryCtrl.text) ?? 0.0,
                                       phone: _phoneCtrl.text.trim(),
@@ -989,7 +1080,7 @@ class _AccountFormDialogState extends State<_AccountFormDialog> {
                                   }
                                 } catch (e) {
                                   if (mounted) {
-                                    showTopError(context, 'Error: $e');
+                                    showTopError(context, _friendlyError(e));
                                   }
                                 }
                               }

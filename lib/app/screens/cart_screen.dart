@@ -64,6 +64,7 @@ class _CartScreenState extends State<CartScreen> {
                 status: 'Active',
                 createdAt: DateTime.now(),
                 updatedAt: DateTime.now(),
+                imageUrls: item.imageUrl != null ? [item.imageUrl!] : [],
               ),
               variant: item.variant,
               priceOverride: item.price,

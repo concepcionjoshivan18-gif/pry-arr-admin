@@ -39,7 +39,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool agreed = false;
   bool showPw = false, showConfirm = false;
   bool submitted = false, loading = false;
-  bool dark = false;
+  bool dark = true;
 
   // used to scroll to the first field with an error
   static const order = [
@@ -87,13 +87,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   void _onBirthdayChanged() {
     final text = birthdayController.text.trim();
-    if (text.length == 10) {
+    if (text.length == 8 || text.length == 10) {
       try {
         final parts = text.split('/');
         if (parts.length == 3) {
           final day = int.parse(parts[0]);
           final month = int.parse(parts[1]);
-          final year = int.parse(parts[2]);
+          int year = int.parse(parts[2]);
+          if (year < 100) {
+            year += year > 30 ? 1900 : 2000;
+          }
           final date = DateTime(year, month, day);
           if (date.year == year && date.month == month && date.day == day) {
             parsedBirthday = date;
@@ -287,7 +290,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
     setState(() => loading = true);
     try {
       final authService = Provider.of<AuthService>(context, listen: false);
-      final firestoreService = Provider.of<FirestoreService>(context, listen: false);
 
       await authService.registerCustomerUser(
         email: email.text.trim(),
@@ -299,16 +301,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
         businessName: business ? formatCapitalized(businessName.text) : null,
         marketingOptIn: true,
         birthday: parsedBirthday,
+        address: address.text.trim(),
+        gender: gender,
+        emergencyContact: emergency.text.trim(),
       );
-
-      final user = authService.currentUser;
-      if (user != null) {
-        await firestoreService.updateUserProfile(user.uid, {
-          'address': address.text.trim(),
-          'gender': gender,
-          'emergencyContact': emergency.text.trim(),
-        });
-      }
 
       // Force sign out so user logs in through the login page first
       await authService.signOut();
@@ -336,128 +332,132 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final p = Pal.of(context);
-    final keyboardOpen = MediaQuery.of(context).viewInsets.bottom > 0;
     return Pal(
       dark: dark,
-      child: Scaffold(
-        backgroundColor: Colors.transparent,
-        body: Stack(
-          children: [
-            const Positioned.fill(child: Background()),
-            SafeArea(
-              child: Column(
-                children: [
-                  _header(p),
-                  Expanded(
-                    child: ListView(
-                      padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
-                      children: [
-                        _section(p, Icons.person_rounded, 'Personal details', [
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Expanded(
-                                  child: _field('first', 'First name', first,
-                                      cap: TextCapitalization.words, maxLen: 50, fmt: nameFmt)),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                  child: _field('last', 'Last name', last,
-                                      cap: TextCapitalization.words, maxLen: 50, fmt: nameFmt)),
-                            ],
-                          ),
-                          _field('middle', 'Middle name (optional)', middle,
-                              icon: Icons.badge_outlined,
-                              cap: TextCapitalization.words,
-                              maxLen: 50,
-                              fmt: nameFmt),
-                          _genderPicker(p),
-                        ]),
-                        _section(p, Icons.call_rounded, 'Contact', [
-                          _field('email', 'Email address', email,
-                              icon: Icons.mail_outline_rounded,
-                              type: TextInputType.emailAddress,
-                              maxLen: 100,
-                              fmt: emailFmt,
-                              noSpaces: true,
-                              suffix: checkingEmail
-                                  ? const Padding(
-                                      padding: EdgeInsets.all(14),
-                                      child: SizedBox(
-                                          width: 18,
-                                          height: 18,
-                                          child: CircularProgressIndicator(strokeWidth: 2)),
-                                    )
-                                  : (errorFor('email') == null &&
-                                          checkedEmails.contains(email.text.trim().toLowerCase())
-                                      ? Icon(Icons.check_circle_rounded, color: p.ok)
-                                      : null)),
-                          _field('phone', 'Contact number', phone,
-                              icon: Icons.smartphone_rounded,
-                              type: TextInputType.phone,
-                              hint: '09XXXXXXXXX',
-                              fmt: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(11)]),
-                          _field('emergency', 'Emergency contact number', emergency,
-                              icon: Icons.contact_phone_outlined,
-                              type: TextInputType.phone,
-                              hint: '09XXXXXXXXX',
-                              helper: 'Someone we can reach if there is a problem with a delivery',
-                              fmt: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(11)]),
-                          _birthdayAndAgeRow(p),
-                        ]),
-                        _section(p, Icons.location_on_rounded, 'Address', [
-                          _field('address', 'Home address', address,
-                              icon: Icons.home_outlined,
-                              lines: 2,
-                              hint: 'House no., street, barangay, city, province',
-                              maxLen: 200,
-                              cap: TextCapitalization.words),
-                        ]),
-                        _section(p, Icons.lock_rounded, 'Security', [
-                          _field('password', 'Password', pw,
-                              icon: Icons.lock_outline_rounded,
-                              obscure: !showPw,
-                              suffix: _eye(p, showPw, () => setState(() => showPw = !showPw))),
-                          if (pw.text.isNotEmpty) _strengthMeter(p),
-                          _field('confirm', 'Confirm password', confirm,
-                              icon: Icons.lock_reset_rounded,
-                              obscure: !showConfirm,
-                              suffix: confirm.text.isNotEmpty && confirm.text == pw.text
-                                  ? Icon(Icons.check_circle_rounded, color: p.ok)
-                                  : _eye(p, showConfirm, () => setState(() => showConfirm = !showConfirm))),
-                        ]),
-                        _businessCard(p),
-                        if (business)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 12),
-                            child: Glass(
-                              radius: 24,
-                              padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-                              child: _field('business', 'Business name', businessName,
-                                  icon: Icons.business_rounded,
+      child: Builder(
+        builder: (context) {
+          final p = Pal.of(context);
+          final keyboardOpen = MediaQuery.of(context).viewInsets.bottom > 0;
+          return Scaffold(
+            backgroundColor: Colors.transparent,
+            body: Stack(
+              children: [
+                const Positioned.fill(child: Background()),
+                SafeArea(
+                  child: Column(
+                    children: [
+                      _header(p),
+                      Expanded(
+                        child: ListView(
+                          padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+                          children: [
+                            _section(p, Icons.person_rounded, 'Personal details', [
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Expanded(
+                                      child: _field('first', 'First name', first,
+                                          cap: TextCapitalization.words, maxLen: 50, fmt: nameFmt)),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                      child: _field('last', 'Last name', last,
+                                          cap: TextCapitalization.words, maxLen: 50, fmt: nameFmt)),
+                                ],
+                              ),
+                              _field('middle', 'Middle name (optional)', middle,
+                                  icon: Icons.badge_outlined,
+                                  cap: TextCapitalization.words,
+                                  maxLen: 50,
+                                  fmt: nameFmt),
+                              _genderPicker(p),
+                            ]),
+                            _section(p, Icons.call_rounded, 'Contact', [
+                              _field('email', 'Email address', email,
+                                  icon: Icons.mail_outline_rounded,
+                                  type: TextInputType.emailAddress,
                                   maxLen: 100,
+                                  fmt: emailFmt,
+                                  noSpaces: true,
+                                  suffix: checkingEmail
+                                      ? const Padding(
+                                          padding: EdgeInsets.all(14),
+                                          child: SizedBox(
+                                              width: 18,
+                                              height: 18,
+                                              child: CircularProgressIndicator(strokeWidth: 2)),
+                                        )
+                                      : (errorFor('email') == null &&
+                                              checkedEmails.contains(email.text.trim().toLowerCase())
+                                          ? Icon(Icons.check_circle_rounded, color: p.ok)
+                                          : null)),
+                              _field('phone', 'Contact number', phone,
+                                  icon: Icons.smartphone_rounded,
+                                  type: TextInputType.phone,
+                                  hint: '09XXXXXXXXX',
+                                  fmt: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(11)]),
+                              _field('emergency', 'Emergency contact number', emergency,
+                                  icon: Icons.contact_phone_outlined,
+                                  type: TextInputType.phone,
+                                  hint: '09XXXXXXXXX',
+                                  helper: 'Someone we can reach if there is a problem with a delivery',
+                                  fmt: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(11)]),
+                              _birthdayAndAgeRow(p),
+                            ]),
+                            _section(p, Icons.location_on_rounded, 'Address', [
+                              _field('address', 'Home address', address,
+                                  icon: Icons.home_outlined,
+                                  lines: 2,
+                                  hint: 'House no., street, barangay, city, province',
+                                  maxLen: 200,
                                   cap: TextCapitalization.words),
+                            ]),
+                            _section(p, Icons.lock_rounded, 'Security', [
+                              _field('password', 'Password', pw,
+                                  icon: Icons.lock_outline_rounded,
+                                  obscure: !showPw,
+                                  suffix: _eye(p, showPw, () => setState(() => showPw = !showPw))),
+                              if (pw.text.isNotEmpty) _strengthMeter(p),
+                              _field('confirm', 'Confirm password', confirm,
+                                  icon: Icons.lock_reset_rounded,
+                                  obscure: !showConfirm,
+                                  suffix: confirm.text.isNotEmpty && confirm.text == pw.text
+                                      ? Icon(Icons.check_circle_rounded, color: p.ok)
+                                      : _eye(p, showConfirm, () => setState(() => showConfirm = !showConfirm))),
+                            ]),
+                            _businessCard(p),
+                            if (business)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 12),
+                                child: Glass(
+                                  radius: 24,
+                                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+                                  child: _field('business', 'Business name', businessName,
+                                      icon: Icons.business_rounded,
+                                      maxLen: 100,
+                                      cap: TextCapitalization.words),
+                                ),
+                              ),
+                            const SizedBox(height: 14),
+                            _terms(p),
+                            const SizedBox(height: 10),
+                            GestureDetector(
+                              onTap: () => context.go('/login'),
+                              child: Center(
+                                child: Text('Already have an account?  Sign in',
+                                    style: ts(p.faint, 13, FontWeight.w600)),
+                              ),
                             ),
-                          ),
-                        const SizedBox(height: 14),
-                        _terms(p),
-                        const SizedBox(height: 10),
-                        GestureDetector(
-                          onTap: () => context.go('/login'),
-                          child: Center(
-                            child: Text('Already have an account?  Sign in',
-                                style: ts(p.faint, 13, FontWeight.w600)),
-                          ),
+                          ],
                         ),
-                      ],
-                    ),
+                      ),
+                      if (!keyboardOpen) _bottomBar(p),
+                    ],
                   ),
-                  if (!keyboardOpen) _bottomBar(p),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
@@ -465,7 +465,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
   Widget _birthdayAndAgeRow(Pal p) {
     final err = shown('birthday');
     OutlineInputBorder b(Color color, [double w = 1]) => OutlineInputBorder(
-        borderRadius: BorderRadius.circular(18), borderSide: BorderSide(color: color, width: w));
+        borderRadius: BorderRadius.circular(18),
+        borderSide: BorderSide(color: color, width: w));
 
     return KeyedSubtree(
       key: keys['birthday'],
@@ -475,7 +476,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Expanded(
-              flex: 2,
+              flex: 3,
               child: TextField(
                 controller: birthdayController,
                 focusNode: focusNodes['birthday'],
@@ -483,15 +484,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 inputFormatters: birthdayFmt,
                 style: ts(p.text, 15),
                 decoration: InputDecoration(
-                  labelText: 'Birthday (DD/MM/YYYY)',
-                  labelStyle: ts(p.faint, 14),
+                  labelText: 'Birthday',
+                  labelStyle: ts(p.sub, 14),
                   floatingLabelStyle: ts(p.sub, 13, FontWeight.w600),
                   hintText: 'DD/MM/YYYY',
-                  hintStyle: ts(p.faint.withValues(alpha: 0.6), 14),
+                  hintStyle: ts(p.faint, 14),
                   errorText: err,
                   errorMaxLines: 2,
                   errorStyle: ts(p.danger, 12, FontWeight.w600),
-                  prefixIcon: Icon(Icons.cake_rounded, color: err != null ? p.danger : p.faint, size: 20),
+                  prefixIcon: Icon(Icons.cake_rounded,
+                      color: err != null ? p.danger : p.sub, size: 20),
                   suffixIcon: IconButton(
                     icon: const Icon(Icons.calendar_today_rounded, color: hwOrange, size: 18),
                     onPressed: () async {
@@ -507,7 +509,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     },
                   ),
                   filled: true,
-                  fillColor: p.fill,
+                  fillColor: p.dark ? Colors.white.withValues(alpha: 0.08) : Colors.white,
                   contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 14),
                   border: b(p.line),
                   enabledBorder: b(p.line),
@@ -519,19 +521,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
             ),
             const SizedBox(width: 10),
             Expanded(
-              flex: 1,
+              flex: 2,
               child: TextField(
                 controller: ageController,
                 readOnly: true,
                 style: ts(p.text, 15),
                 decoration: InputDecoration(
                   labelText: 'Age',
-                  labelStyle: ts(p.faint, 14),
+                  labelStyle: ts(p.sub, 14),
                   floatingLabelStyle: ts(p.sub, 13, FontWeight.w600),
                   hintText: '10-50',
-                  hintStyle: ts(p.faint.withValues(alpha: 0.6), 14),
+                  hintStyle: ts(p.faint, 14),
                   filled: true,
-                  fillColor: p.fill,
+                  fillColor: p.dark ? Colors.white.withValues(alpha: 0.08) : Colors.white,
                   contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 14),
                   border: b(p.line),
                   enabledBorder: b(p.line),
@@ -575,21 +577,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         overflow: TextOverflow.ellipsis,
                         style: ts(p.text, 24, FontWeight.w800)),
                   ],
-                ),
-              ),
-              Glass(
-                radius: 22,
-                child: SizedBox(
-                  width: 44,
-                  height: 44,
-                  child: IconButton(
-                    onPressed: () => setState(() => dark = !dark),
-                    icon: Icon(
-                      dark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
-                      color: dark ? hwYellow : hwOrange,
-                      size: 20,
-                    ),
-                  ),
                 ),
               ),
             ],
@@ -671,11 +658,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
       if (obscure) LengthLimitingTextInputFormatter(64),
       if (noSpaces || obscure) FilteringTextInputFormatter.deny(RegExp(r'\s')),
       if (!noSpaces && !obscure)
-        TextInputFormatter.withFunction((o, n) =>
-            (n.text.startsWith(' ') || n.text.contains('  ')) ? o : n),
+        TextInputFormatter.withFunction(
+            (o, n) => (n.text.startsWith(' ') || n.text.contains('  ')) ? o : n),
     ];
     OutlineInputBorder b(Color color, [double w = 1]) => OutlineInputBorder(
-        borderRadius: BorderRadius.circular(18), borderSide: BorderSide(color: color, width: w));
+        borderRadius: BorderRadius.circular(18),
+        borderSide: BorderSide(color: color, width: w));
+
     return KeyedSubtree(
       key: keys[id],
       child: Padding(
@@ -691,20 +680,22 @@ class _RegisterScreenState extends State<RegisterScreen> {
           style: ts(p.text, 15),
           decoration: InputDecoration(
             labelText: label,
-            labelStyle: ts(p.faint, 14),
+            labelStyle: ts(p.sub, 14),
             floatingLabelStyle: ts(p.sub, 13, FontWeight.w600),
             hintText: hint,
-            hintStyle: ts(p.faint.withValues(alpha: 0.6), 14),
+            hintStyle: ts(p.faint, 14),
             helperText: helper,
             helperMaxLines: 2,
-            helperStyle: ts(p.faint, 11),
+            helperStyle: ts(p.sub, 11),
             errorText: err,
             errorMaxLines: 2,
             errorStyle: ts(p.danger, 12, FontWeight.w600),
-            prefixIcon: icon == null ? null : Icon(icon, color: err != null ? p.danger : p.faint, size: 20),
+            prefixIcon: icon == null
+                ? null
+                : Icon(icon, color: err != null ? p.danger : p.sub, size: 20),
             suffixIcon: suffix,
             filled: true,
-            fillColor: p.fill,
+            fillColor: p.dark ? Colors.white.withValues(alpha: 0.08) : Colors.white,
             contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 14),
             border: b(p.line),
             enabledBorder: b(p.line),
@@ -750,7 +741,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         duration: const Duration(milliseconds: 220),
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         decoration: BoxDecoration(
-                          color: gender == o.$1 ? hwOrange : p.fill,
+                          color: gender == o.$1 ? hwOrange : (p.dark ? Colors.white.withValues(alpha: 0.08) : Colors.white),
                           borderRadius: BorderRadius.circular(18),
                           border: gender == o.$1 ? null : Border.all(color: p.line),
                           boxShadow: gender == o.$1
@@ -1129,179 +1120,5 @@ class SuccessSheet extends StatelessWidget {
         PrimaryButton(label: 'Start shopping', onTap: onStartShopping),
       ],
     );
-  }
-}
-
-class Validators {
-  Validators._();
-
-  static String capitalizeWords(String text) => formatCapitalized(text);
-
-  static final RegExp _nameRe =
-      RegExp(r"^[A-Za-zÀ-ÖØ-öø-ÿ]+(?:\.?[ \-'][A-Za-zÀ-ÖØ-öø-ÿ]+|\.)*$");
-  static final RegExp _emailRe = RegExp(
-      r'^[A-Za-z0-9](?:[A-Za-z0-9._%+\-]{0,62}[A-Za-z0-9])?@(?:[A-Za-z0-9](?:[A-Za-z0-9\-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,}$');
-  static final RegExp _digitsOnly = RegExp(r'^\d+$');
-  static final RegExp _addressChars = RegExp(r"^[A-Za-z0-9À-ÿ ,.\-#'/()]+$");
-  static final RegExp _businessChars = RegExp(r"^[A-Za-z0-9À-ÿ][A-Za-z0-9À-ÿ &.,'\-()/]*$");
-
-  static const _commonPasswords = {
-    'password', 'password1', 'password123', 'password1!', 'passw0rd',
-    '12345678', '123456789', '1234567890', 'qwerty123', 'qwertyuiop',
-    'iloveyou', 'admin123', 'welcome1', 'abc12345', '11111111', 'letmein1',
-  };
-
-  static const genders = ['Male', 'Female', 'Other'];
-
-  static String? _name(String? v, String field, {bool required = true, int min = 2, int max = 50}) {
-    final s = (v ?? '').trim();
-    if (s.isEmpty) return required ? '$field is required' : null;
-    if (s.length < min) return '$field must be at least $min characters';
-    if (s.length > max) return '$field must be $max characters or less';
-    if (RegExp(r'\d').hasMatch(s)) return '$field cannot contain numbers';
-    if (!_nameRe.hasMatch(s)) {
-      return '$field can only contain letters, spaces, hyphens, apostrophes and periods';
-    }
-    return null;
-  }
-
-  static String? validateFirstName(String? v) => _name(v, 'First name');
-  static String? validateLastName(String? v) => _name(v, 'Last name');
-  static String? validateMiddleName(String? v) => _name(v, 'Middle name', required: false, min: 1);
-
-  static String? validateEmail(String? v) {
-    final s = (v ?? '').trim();
-    if (s.isEmpty) return 'Email address is required';
-    if (s.length > 100) return 'Email address must be 100 characters or less';
-    if (s.contains(RegExp(r'\s'))) return 'Email address cannot contain spaces';
-
-    final ats = '@'.allMatches(s).length;
-    if (ats == 0) return 'Email must contain an @ (username@domain.extension)';
-    if (ats > 1) return 'Email must contain only one @';
-
-    final at = s.indexOf('@');
-    final user = s.substring(0, at);
-    final domain = s.substring(at + 1);
-
-    if (user.isEmpty) return 'Enter a username before the @';
-    if (s.contains('..')) return 'Email cannot contain consecutive dots';
-    if (user.startsWith('.')) return 'Username cannot start with a dot';
-    if (user.endsWith('.')) return 'No dot allowed right before the @';
-    if (domain.isEmpty) return 'Enter a domain after the @ (e.g. example.com)';
-    if (domain.startsWith('.')) return 'No dot allowed right after the @';
-    if (domain.endsWith('.')) return 'Email cannot end with a dot';
-    if (!domain.contains('.')) return 'Add an extension to the domain (e.g. .com)';
-    if (!_emailRe.hasMatch(s)) {
-      return 'Enter a valid email address (e.g. name@example.com)';
-    }
-    return null;
-  }
-
-  static bool hasTooManySameDigits(String value, {int maxAllowed = 4}) {
-    final counts = <String, int>{};
-    for (int i = 0; i < value.length; i++) {
-      final ch = value[i];
-      counts[ch] = (counts[ch] ?? 0) + 1;
-      if (counts[ch]! > maxAllowed) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  static String? _mobile(String? v, String field) {
-    final s = (v ?? '').trim();
-    if (s.isEmpty) return '$field is required';
-    if (!_digitsOnly.hasMatch(s)) return '$field can only contain digits';
-    if (s.length >= 2 && !s.startsWith('09')) return '$field must start with 09';
-    if (s.length != 11) return '$field must be exactly 11 digits (09XXXXXXXXX)';
-    if (hasTooManySameDigits(s, maxAllowed: 4)) {
-      return '$field cannot have more than 4 of the same digit';
-    }
-    return null;
-  }
-
-  static String? validatePhone(String? v) => _mobile(v, 'Contact number');
-
-  static String? validateBirthday(DateTime? birthday) {
-    if (birthday == null) return 'Birthday is required';
-    final now = DateTime.now();
-    int age = now.year - birthday.year;
-    if (now.month < birthday.month || (now.month == birthday.month && now.day < birthday.day)) {
-      age--;
-    }
-    if (age < 10) {
-      return 'User must be at least 10 years old';
-    }
-    if (age > 50) {
-      return 'User must be 50 years old or younger';
-    }
-    return null;
-  }
-
-  static String? validateEmergencyContact(String? v, {String? ownPhone}) {
-    final err = _mobile(v, 'Emergency contact number');
-    if (err != null) return err;
-    if (ownPhone != null && ownPhone.trim().isNotEmpty && v!.trim() == ownPhone.trim()) {
-      return 'Must be different from your own number';
-    }
-    return null;
-  }
-
-  static String? validateAddress(String? v) {
-    final s = (v ?? '').trim();
-    if (s.isEmpty) return 'Home address is required';
-    if (s.length < 10) return 'Enter your complete address (house no., street, barangay, city)';
-    if (s.length > 200) return 'Address is too long (max 200 characters)';
-    if (!_addressChars.hasMatch(s)) return 'Address contains invalid characters';
-    if (!RegExp(r'[A-Za-z]{3,}').hasMatch(s)) return 'Enter a valid address';
-    if (s.split(RegExp(r'\s+')).length < 3) return 'Include your street, barangay and city';
-    return null;
-  }
-
-  static String? validateGender(String? v) =>
-      (v == null || !genders.contains(v)) ? 'Please select your gender' : null;
-
-  static String? validateBusinessName(String? v) {
-    final s = (v ?? '').trim();
-    if (s.isEmpty) return 'Business name is required';
-    if (s.length < 2) return 'Business name must be at least 2 characters';
-    if (s.length > 100) return 'Business name must be 100 characters or less';
-    if (!_businessChars.hasMatch(s) || !RegExp(r'[A-Za-z]').hasMatch(s)) {
-      return 'Business name contains invalid characters';
-    }
-    return null;
-  }
-
-  static String? validatePassword(String? v) {
-    final s = v ?? '';
-    if (s.isEmpty) return 'Password is required';
-    if (s.length < 8) return 'Password must be at least 8 characters';
-    if (s.length > 64) return 'Password must be 64 characters or less';
-    if (s.contains(' ')) return 'Password cannot contain spaces';
-    if (!RegExp(r'[a-z]').hasMatch(s)) return 'Add a lowercase letter';
-    if (!RegExp(r'[A-Z]').hasMatch(s)) return 'Add an uppercase letter';
-    if (!RegExp(r'\d').hasMatch(s)) return 'Add a number';
-    if (!RegExp(r'[^A-Za-z0-9]').hasMatch(s)) return 'Add a special character (e.g. ! @ # \$)';
-    if (_commonPasswords.contains(s.toLowerCase())) return 'This password is too common';
-    return null;
-  }
-
-  static String? validateConfirmPassword(String? v, String? password) {
-    if ((v ?? '').isEmpty) return 'Please confirm your password';
-    if (v != password) return 'Passwords do not match';
-    return null;
-  }
-
-  static double getPasswordStrength(String? v) {
-    final s = v ?? '';
-    if (s.isEmpty) return 0.0;
-    if (s.length < 8 || _commonPasswords.contains(s.toLowerCase())) return 0.2;
-    var score = 1;
-    if (s.length >= 12) score++;
-    if (RegExp(r'[a-z]').hasMatch(s) && RegExp(r'[A-Z]').hasMatch(s)) score++;
-    if (RegExp(r'\d').hasMatch(s)) score++;
-    if (RegExp(r'[^A-Za-z0-9]').hasMatch(s)) score++;
-    return score / 5;
   }
 }

@@ -207,9 +207,10 @@ class DigitalReceiptScreen extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Expanded(
+            flex: 2,
             child: Text(
               label,
               style: TextStyle(
@@ -220,12 +221,16 @@ class DigitalReceiptScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 12),
-          Text(
-            val,
-            style: TextStyle(
-              fontSize: fontSize,
-              fontWeight: isBold ? FontWeight.w900 : FontWeight.bold,
-              color: color ?? hwCharcoal,
+          Expanded(
+            flex: 3,
+            child: Text(
+              val,
+              textAlign: TextAlign.right,
+              style: TextStyle(
+                fontSize: fontSize,
+                fontWeight: isBold ? FontWeight.w900 : FontWeight.bold,
+                color: color ?? hwCharcoal,
+              ),
             ),
           ),
         ],

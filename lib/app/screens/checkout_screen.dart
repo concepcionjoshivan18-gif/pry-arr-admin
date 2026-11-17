@@ -3,6 +3,8 @@ import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:provider/provider.dart';
@@ -53,9 +55,14 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   final gcashAmountController = TextEditingController();
   final pointsController = TextEditingController();
 
+  late final Stream<List<OrderModel>> _myOrdersStream;
+
   @override
   void initState() {
     super.initState();
+    final fs = Provider.of<FirestoreService>(context, listen: false);
+    final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    _myOrdersStream = fs.streamMyOrders(uid);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initDefaultAddressAndGps();
     });
@@ -260,8 +267,19 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         return;
       }
 
-      final String? refNo = gcashRefController.text.trim().isNotEmpty ? gcashRefController.text.trim() : uploadedReceipt?.referenceNumber;
-      final double? amt = double.tryParse(gcashAmountController.text.trim()) ?? uploadedReceipt?.amount;
+      String paymentStatus = payment == 'GCash' ? 'paid' : 'pending';
+      String? reviewReason;
+
+      final String? refNo = payment == 'GCash'
+          ? (gcashRefController.text.trim().isNotEmpty
+              ? gcashRefController.text.trim()
+              : uploadedReceipt?.referenceNumber)
+          : null;
+      final double? amt = payment == 'GCash'
+          ? (double.tryParse(gcashAmountController.text.trim()) ?? uploadedReceipt?.amount)
+          : null;
+      final String? finalReceiptImage = payment == 'GCash' ? receiptImageUrl : null;
+      final String? finalReviewReason = payment == 'GCash' ? reviewReason : null;
 
       // GCash Strict Validation & Error Handling
       if (payment == 'GCash') {
@@ -286,9 +304,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         }
       }
 
-      String paymentStatus = payment == 'GCash' ? 'paid' : 'paid';
-      String? reviewReason;
-
       final address = addressController.text.trim();
 
       await firestoreService.placeOrder(
@@ -303,8 +318,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         paymentStatus: paymentStatus,
         gcashReferenceNumber: refNo,
         gcashAmount: amt,
-        reviewReason: reviewReason,
-        receiptImageUrl: receiptImageUrl,
+        reviewReason: finalReviewReason,
+        receiptImageUrl: finalReceiptImage,
         deliveryLat: pinnedLat ?? 14.2818,
         deliveryLng: pinnedLng ?? 121.4167,
         deliveryAddress: address,
@@ -317,7 +332,15 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       if (!mounted) return;
       setState(() => placing = false);
 
-      Navigator.pushReplacement(
+      showTopNotification(
+        context,
+        '📦 Order Placed Successfully!',
+        isSuccess: true,
+      );
+
+      context.go('/customer/catalog');
+
+      Navigator.push(
         context,
         MaterialPageRoute(
           builder: (context) => DigitalReceiptScreen(
@@ -362,9 +385,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           if (!mounted) return;
           setState(() => placing = false);
 
-          snack('Offline mode: Order saved locally & queued for sync!');
+          showTopNotification(context, '📦 Offline Mode: Order saved locally & queued!', isSuccess: true);
+          context.go('/customer/catalog');
 
-          Navigator.pushReplacement(
+          Navigator.push(
             context,
             MaterialPageRoute(
               builder: (context) => DigitalReceiptScreen(
@@ -395,15 +419,17 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   @override
   Widget build(BuildContext context) {
     final p = Pal.of(context);
-    final firestoreService = Provider.of<FirestoreService>(context);
-    final user = Provider.of<AuthService>(context).currentUser;
 
     return StreamBuilder<List<OrderModel>>(
-      stream: firestoreService.streamAllOrders(),
+      stream: _myOrdersStream,
       builder: (context, snapshot) {
-        final allOrders = snapshot.data ?? [];
-        final customerOrders = allOrders.where((o) => o.customerId == (user?.uid ?? '')).toList();
-        final bool verified = customerOrders.any((o) => o.status == 'completed' || o.paymentMethod == 'GCash' || o.paymentMethod == 'Card');
+        final bool isLoading = snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData;
+        final bool hasError = snapshot.hasError;
+        final orders = snapshot.data ?? [];
+        final bool verified = !hasError && (orders.isNotEmpty || orders.any((o) {
+          final s = o.status.toLowerCase();
+          return s == 'completed' || s == 'delivered' || o.paymentMethod.contains('GCash') || o.paymentMethod.contains('Card');
+        }));
 
         return Scaffold(
           backgroundColor: Colors.transparent,
@@ -420,7 +446,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                       _title(p, 'Delivery speed'),
                       _speedRow(p),
                       _title(p, 'Payment method'),
-                      _paymentSection(p, verified),
+                      _paymentSection(p, verified, isLoading: isLoading, hasError: hasError),
                       if (payment == 'GCash') ...[
                         const SizedBox(height: 12),
                         _gcashReceiptSection(p),
@@ -1277,7 +1303,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     );
   }
 
-  Widget _paymentSection(Pal p, bool verified) {
+  Widget _paymentSection(Pal p, bool verified, {bool isLoading = false, bool hasError = false}) {
     Widget tile(String id, String name, String sub, IconData icon,
             {String? badge, bool locked = false}) =>
         PayTile(
@@ -1289,8 +1315,36 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           selected: payment == id && !locked,
           onTap: locked
               ? () => snack('Requires 1 completed online delivery first')
-              : () => setState(() => payment = id),
+              : () => setState(() {
+                  payment = id;
+                  if (id != 'GCash') {
+                    uploadedReceipt = null;
+                    receiptImageUrl = null;
+                    gcashRefController.clear();
+                    gcashAmountController.clear();
+                  }
+                }),
         );
+
+    if (isLoading) {
+      return Container(
+        width: double.infinity,
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: p.fill,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: p.line),
+        ),
+        child: Row(
+          children: [
+            const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: hwOrange, strokeWidth: 2)),
+            const SizedBox(width: 12),
+            Text('Checking payment eligibility...', style: ts(p.faint, 13, FontWeight.w600)),
+          ],
+        ),
+      );
+    }
 
     final tint = verified ? p.ok : p.amber;
     return Column(
@@ -1360,13 +1414,20 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               border: Border.all(color: hwOrange.withValues(alpha: 0.35)),
             ),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Send GCash payment to:', style: ts(p.faint, 12, FontWeight.w600)),
-                const SizedBox(height: 6),
+                Text('Scan GCash QR Code to pay:', style: ts(p.faint, 12, FontWeight.w600)),
+                const SizedBox(height: 8),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(14),
+                  child: Image.asset(
+                    'assets/icons/qr.jpeg',
+                    width: 220,
+                    height: 220,
+                    fit: BoxFit.contain,
+                  ),
+                ),
+                const SizedBox(height: 10),
                 Text('Account Name: $merchantGcashName', style: ts(p.text, 13, FontWeight.w800)),
-                const SizedBox(height: 2),
-                Text('Mobile Number: $merchantGcashNumber', style: ts(p.amber, 16, FontWeight.w900)),
               ],
             ),
           ),

@@ -1,4 +1,5 @@
 import 'dart:ui';
+import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -115,7 +116,7 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
                         ),
                         const SizedBox(width: 12),
                         GlassIconButton(
-                          onTap: () => authService.signOut(),
+                          onTap: () => confirmAndSignOut(context, authService),
                           icon: Icon(Icons.logout_rounded, color: p.sub),
                         ),
                       ],
@@ -249,7 +250,7 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
               final query = _searchController.text.trim().toLowerCase();
 
               final deliveryOrders = allOrders.where((o) {
-                final isPendingDelivery = o.status == 'processing' || o.status == 'out_for_delivery';
+                final isPendingDelivery = o.status == 'out_for_delivery';
                 if (!isPendingDelivery) return false;
                 if (query.isEmpty) return true;
                 final matchId = o.id.toLowerCase().contains(query);
@@ -423,16 +424,16 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
                     onPressed: () {
                       _showDriverChatModal(context, order, fs, auth);
                     },
-                    icon: const Icon(Icons.chat_bubble_outline_rounded, size: 16, color: Colors.blue),
-                    label: const Text('CHAT', style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold, fontSize: 12)),
+                    icon: const Icon(Icons.chat_bubble_outline_rounded, size: 14, color: Colors.blue),
+                    label: const Text('CHAT', style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold, fontSize: 11), maxLines: 1, overflow: TextOverflow.ellipsis),
                     style: OutlinedButton.styleFrom(
                       side: const BorderSide(color: Colors.blue),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 2),
                     ),
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 6),
                 Expanded(
                   child: OutlinedButton.icon(
                     onPressed: () {
@@ -441,16 +442,16 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
                         _currentIndex = 1; // Switch to Map Pin tab
                       });
                     },
-                    icon: const Icon(Icons.pin_drop_rounded, size: 16, color: hwOrange),
-                    label: const Text('MAP PIN', style: TextStyle(color: hwOrange, fontWeight: FontWeight.bold, fontSize: 12)),
+                    icon: const Icon(Icons.pin_drop_rounded, size: 14, color: hwOrange),
+                    label: const Text('MAP PIN', style: TextStyle(color: hwOrange, fontWeight: FontWeight.bold, fontSize: 11), maxLines: 1, overflow: TextOverflow.ellipsis),
                     style: OutlinedButton.styleFrom(
                       side: const BorderSide(color: hwOrange),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 2),
                     ),
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 6),
                 if (order.status != 'out_for_delivery')
                   Expanded(
                     child: ElevatedButton.icon(
@@ -460,13 +461,13 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
                           showTopNotification(context, 'Order #${order.id.substring(0, 5)} is Out for Delivery!', isSuccess: true);
                         }
                       },
-                      icon: const Icon(Icons.local_shipping, size: 16),
-                      label: const Text('DISPATCH', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                      icon: const Icon(Icons.local_shipping, size: 14),
+                      label: const Text('DISPATCH', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11), maxLines: 1, overflow: TextOverflow.ellipsis),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.purple,
                         foregroundColor: Colors.white,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 2),
                       ),
                     ),
                   )
@@ -474,18 +475,24 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
                   Expanded(
                     child: ElevatedButton.icon(
                       onPressed: driver == null ? null : () async {
-                        await fs.finalizeOrder(order, driver);
-                        if (mounted) {
-                          showTopNotification(context, 'Order #${order.id.substring(0, 5)} marked as DELIVERED!', isSuccess: true);
+                        try {
+                          await fs.finalizeOrder(order, driver);
+                          if (mounted) {
+                            showTopNotification(context, 'Order #${order.id.substring(0, order.id.length > 5 ? 5 : order.id.length)} marked as DELIVERED!', isSuccess: true);
+                          }
+                        } catch (e) {
+                          if (mounted) {
+                            showTopNotification(context, 'Error marking delivered: $e', isError: true);
+                          }
                         }
                       },
-                      icon: const Icon(Icons.check_circle_rounded, size: 16),
-                      label: const Text('DELIVERED', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                      icon: const Icon(Icons.check_circle_rounded, size: 14),
+                      label: const Text('DELIVERED', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11), maxLines: 1, overflow: TextOverflow.ellipsis),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.green,
                         foregroundColor: Colors.white,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 2),
                       ),
                     ),
                   ),
@@ -497,135 +504,166 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
     );
   }
 
-  void _showDriverChatModal(BuildContext context, OrderModel order, FirestoreService fs, AuthService auth) async {
+  void _showDriverChatModal(BuildContext context, OrderModel order, FirestoreService fs, AuthService auth) {
     final driverUser = auth.currentUser;
-    final chatId = await fs.getOrCreateConversation(
-      type: 'delivery',
-      customerId: order.customerId,
-      driverId: driverUser?.uid,
-      orderId: order.id,
-    );
     final isClosed = order.status == 'completed' || order.status == 'cancelled';
     final chatCtrl = TextEditingController();
     final scrollCtrl = ScrollController();
-
-    if (!context.mounted) return;
 
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (ctx) => Container(
-        constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.8),
-        decoration: const BoxDecoration(
-          color: Color(0xFF1F2429),
-          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      builder: (ctx) => FutureBuilder<String>(
+        future: fs.getOrCreateConversation(
+          type: 'delivery',
+          customerId: order.customerId,
+          driverId: driverUser?.uid,
+          orderId: order.id,
         ),
-        padding: EdgeInsets.fromLTRB(20, 16, 20, 16 + MediaQuery.of(ctx).viewInsets.bottom),
-        child: Column(
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        builder: (context, snapshot) {
+          if (!snapshot.hasData) {
+            return Container(
+              height: 220,
+              decoration: const BoxDecoration(
+                color: Color(0xFF1F2429),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+              ),
+              child: const Center(child: CircularProgressIndicator(color: hwOrange)),
+            );
+          }
+          final chatId = snapshot.data!;
+          return Container(
+            constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.8),
+            decoration: const BoxDecoration(
+              color: Color(0xFF1F2429),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+            ),
+            padding: EdgeInsets.fromLTRB(20, 16, 20, 16 + MediaQuery.of(ctx).viewInsets.bottom),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Expanded(
-                  child: Row(
-                    children: [
-                      const Icon(Icons.two_wheeler_rounded, color: hwOrange),
-                      const SizedBox(width: 10),
-                      Flexible(
-                        child: Text(
-                          'Delivery Chat - Order #${order.id.substring(0, 5)}',
-                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
-                          overflow: TextOverflow.ellipsis,
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Row(
+                        children: [
+                          const Icon(Icons.two_wheeler_rounded, color: hwOrange),
+                          const SizedBox(width: 10),
+                          Flexible(
+                            child: Text(
+                              'Delivery Chat - Order #${order.id.substring(0, math.min(5, order.id.length))}',
+                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(icon: const Icon(Icons.close, color: Colors.white54), onPressed: () => Navigator.pop(ctx)),
+                  ],
+                ),
+                const Divider(color: Colors.white12),
+                if (isClosed)
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    margin: const EdgeInsets.only(bottom: 8),
+                    decoration: BoxDecoration(color: Colors.red.withOpacity(0.2), borderRadius: BorderRadius.circular(8)),
+                    child: const Text('This delivery conversation is closed (order completed or cancelled).', style: TextStyle(color: Colors.redAccent, fontSize: 12)),
+                  ),
+                Flexible(
+                  child: StreamBuilder<List<ChatMessage>>(
+                    stream: fs.streamChatMessages(chatId),
+                    builder: (context, msgSnapshot) {
+                      final messages = msgSnapshot.data ?? [];
+                      if (messages.isEmpty) {
+                        return const Center(
+                          child: Padding(
+                            padding: EdgeInsets.symmetric(vertical: 32),
+                            child: Text('No messages yet. Send a message to the customer.', style: TextStyle(color: Colors.white54)),
+                          ),
+                        );
+                      }
+                      return SizedBox(
+                        height: 250,
+                        child: ListView.builder(
+                          controller: scrollCtrl,
+                          shrinkWrap: true,
+                          itemCount: messages.length,
+                          itemBuilder: (context, idx) {
+                            final m = messages[idx];
+                            final isMe = m.senderId == (driverUser?.uid ?? 'driver');
+                            return Align(
+                              alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+                              child: Container(
+                                margin: const EdgeInsets.only(bottom: 8),
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                decoration: BoxDecoration(
+                                  color: isMe ? hwOrange : Colors.white12,
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                                child: Text('${m.senderName}: ${m.text}', style: const TextStyle(color: Colors.white, fontSize: 13)),
+                              ),
+                            );
+                          },
                         ),
+                      );
+                    },
+                  ),
+                ),
+                if (!isClosed) ...[
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: chatCtrl,
+                          style: const TextStyle(color: Colors.white),
+                          decoration: InputDecoration(
+                            hintText: 'Message customer...',
+                            hintStyle: const TextStyle(color: Colors.white54),
+                            filled: true,
+                            fillColor: Colors.white12,
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton(
+                        icon: const Icon(Icons.send_rounded, color: hwOrange),
+                        onPressed: () async {
+                          final t = chatCtrl.text.trim();
+                          if (t.isEmpty) return;
+                          chatCtrl.clear();
+                          try {
+                            await fs.sendChatMessage(
+                              chatId,
+                              ChatMessage(
+                                id: '',
+                                conversationId: chatId,
+                                senderId: driverUser?.uid ?? 'driver',
+                                senderName: driverUser?.fullName ?? 'Delivery Driver',
+                                senderRole: 'driver',
+                                recipientId: order.customerId,
+                                text: t,
+                                timestamp: DateTime.now(),
+                                orderId: order.id,
+                              ),
+                            );
+                          } catch (e) {
+                            debugPrint('Error sending message: $e');
+                          }
+                        },
                       ),
                     ],
                   ),
-                ),
-                IconButton(icon: const Icon(Icons.close, color: Colors.white54), onPressed: () => Navigator.pop(ctx)),
+                ],
               ],
             ),
-            const Divider(color: Colors.white12),
-            if (isClosed)
-              Container(
-                padding: const EdgeInsets.all(8),
-                margin: const EdgeInsets.only(bottom: 8),
-                decoration: BoxDecoration(color: Colors.red.withOpacity(0.2), borderRadius: BorderRadius.circular(8)),
-                child: const Text('This delivery conversation is closed (order completed or cancelled).', style: TextStyle(color: Colors.redAccent, fontSize: 12)),
-              ),
-            Expanded(
-              child: StreamBuilder<List<ChatMessage>>(
-                stream: fs.streamChatMessages(chatId),
-                builder: (context, snapshot) {
-                  final messages = snapshot.data ?? [];
-                  if (messages.isEmpty) {
-                    return const Center(child: Text('No messages yet. Send a message to the customer.', style: TextStyle(color: Colors.white54)));
-                  }
-                  return ListView.builder(
-                    controller: scrollCtrl,
-                    itemCount: messages.length,
-                    itemBuilder: (context, idx) {
-                      final m = messages[idx];
-                      final isMe = m.senderId == (driverUser?.uid ?? 'driver');
-                      return Align(
-                        alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
-                        child: Container(
-                          margin: const EdgeInsets.only(bottom: 8),
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                          decoration: BoxDecoration(
-                            color: isMe ? hwOrange : Colors.white12,
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          child: Text('${m.senderName}: ${m.text}', style: const TextStyle(color: Colors.white, fontSize: 13)),
-                        ),
-                      );
-                    },
-                  );
-                },
-              ),
-            ),
-            if (!isClosed)
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: chatCtrl,
-                      style: const TextStyle(color: Colors.white),
-                      decoration: InputDecoration(
-                        hintText: 'Message customer...',
-                        hintStyle: const TextStyle(color: Colors.white54),
-                        filled: true,
-                        fillColor: Colors.white12,
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
-                      ),
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.send_rounded, color: hwOrange),
-                    onPressed: () async {
-                      final t = chatCtrl.text.trim();
-                      if (t.isEmpty) return;
-                      chatCtrl.clear();
-                      await fs.sendChatMessage(
-                        chatId,
-                        ChatMessage(
-                          id: '',
-                          conversationId: chatId,
-                          senderId: driverUser?.uid ?? 'driver',
-                          senderName: driverUser?.fullName ?? 'Delivery Driver',
-                          senderRole: 'driver',
-                          recipientId: order.customerId,
-                          text: t,
-                          timestamp: DateTime.now(),
-                          orderId: order.id,
-                        ),
-                      );
-                    },
-                  ),
-                ],
-              ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }

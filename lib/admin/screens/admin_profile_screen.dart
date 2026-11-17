@@ -78,8 +78,8 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
       final firestore = Provider.of<FirestoreService>(context, listen: false);
 
       final updatedData = {
-        'firstName': formatCapitalized(_fNameCtrl.text),
-        'lastName': formatCapitalized(_lNameCtrl.text),
+        'firstName': Validators.capitalizeWords(_fNameCtrl.text),
+        'lastName': Validators.capitalizeWords(_lNameCtrl.text),
         'phone': _phoneCtrl.text.trim(),
         'address': _addressCtrl.text.trim(),
         'gender': _gender,
@@ -288,7 +288,10 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
                                   child: TextFormField(
                                     controller: _fNameCtrl,
                                     textCapitalization: TextCapitalization.words,
-                                    inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r"[a-zA-ZÀ-ÖØ-öø-ÿ\s'\-]"))],
+                                    inputFormatters: [
+                                      LengthLimitingTextInputFormatter(50),
+                                      FilteringTextInputFormatter.allow(RegExp(r"[a-zA-ZÀ-ÖØ-öø-ÿ .'\-]")),
+                                    ],
                                     style: TextStyle(color: p.text),
                                     decoration: _hwInputDecoration(context, 'First Name'),
                                     validator: Validators.validateFirstName,
@@ -299,7 +302,10 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
                                   child: TextFormField(
                                     controller: _lNameCtrl,
                                     textCapitalization: TextCapitalization.words,
-                                    inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r"[a-zA-ZÀ-ÖØ-öø-ÿ\s'\-]"))],
+                                    inputFormatters: [
+                                      LengthLimitingTextInputFormatter(50),
+                                      FilteringTextInputFormatter.allow(RegExp(r"[a-zA-ZÀ-ÖØ-öø-ÿ .'\-]")),
+                                    ],
                                     style: TextStyle(color: p.text),
                                     decoration: _hwInputDecoration(context, 'Last Name'),
                                     validator: Validators.validateLastName,
@@ -311,7 +317,10 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
                             TextFormField(
                               controller: _phoneCtrl,
                               style: TextStyle(color: p.text),
-                              decoration: _hwInputDecoration(context, 'Contact Number (09...)'),
+                              decoration: _hwInputDecoration(context, 'Contact Number').copyWith(
+                                floatingLabelBehavior: FloatingLabelBehavior.never,
+                                hintText: 'e.g. 09123456789',
+                              ),
                               validator: Validators.validatePhone,
                               keyboardType: TextInputType.phone,
                               inputFormatters: [
@@ -323,9 +332,12 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
                             TextFormField(
                               controller: _addressCtrl,
                               style: TextStyle(color: p.text),
-                              decoration: _hwInputDecoration(context, 'Home Address'),
+                              decoration: _hwInputDecoration(context, 'Home Address').copyWith(
+                                floatingLabelBehavior: FloatingLabelBehavior.never,
+                                hintText: 'e.g. Pagsawitan, Santa Cruz, Laguna',
+                              ),
                               validator: Validators.validateAddress,
-                              inputFormatters: [LengthLimitingTextInputFormatter(50)],
+                              inputFormatters: [LengthLimitingTextInputFormatter(200)],
                             ),
                             const SizedBox(height: 20),
                             Row(
@@ -339,6 +351,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
                                     items: ['Male', 'Female']
                                         .map((g) => DropdownMenuItem(value: g, child: Text(g)))
                                         .toList(),
+                                    validator: (v) => v == null || v.isEmpty ? 'Gender is required' : null,
                                     onChanged: (v) => setState(() => _gender = v ?? 'Male'),
                                   ),
                                 ),
@@ -347,8 +360,11 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
                                   child: TextFormField(
                                     controller: _emergencyCtrl,
                                     style: TextStyle(color: p.text),
-                                    decoration: _hwInputDecoration(context, 'Emergency Contact (09...)'),
-                                    validator: Validators.validateEmergencyContact,
+                                    decoration: _hwInputDecoration(context, 'Emergency Contact').copyWith(
+                                      floatingLabelBehavior: FloatingLabelBehavior.never,
+                                      hintText: 'e.g. 09987654321',
+                                    ),
+                                    validator: (v) => Validators.validateEmergencyContact(v, isRequired: false, ownPhone: _phoneCtrl.text),
                                     keyboardType: TextInputType.phone,
                                     inputFormatters: [
                                       LengthLimitingTextInputFormatter(11),

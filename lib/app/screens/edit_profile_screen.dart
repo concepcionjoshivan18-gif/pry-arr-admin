@@ -101,53 +101,86 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Change Password'),
-        content: Form(
-          key: formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextFormField(
-                controller: pwCtrl,
-                obscureText: true,
-                decoration: const InputDecoration(labelText: 'New Password', border: OutlineInputBorder()),
-                validator: (v) => Validators.validatePassword(v),
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          final pwText = pwCtrl.text;
+          final strength = Validators.getPasswordStrength(pwText);
+          final strengthLabel = Validators.getPasswordStrengthLabel(strength);
+          final strengthColor = strength <= 0.34 ? Colors.redAccent : (strength <= 0.67 ? Colors.amber : Colors.green);
+
+          return AlertDialog(
+            title: const Text('Change Password'),
+            content: Form(
+              key: formKey,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    TextFormField(
+                      controller: pwCtrl,
+                      obscureText: true,
+                      decoration: const InputDecoration(labelText: 'New Password', border: OutlineInputBorder()),
+                      validator: (v) => Validators.validatePassword(v),
+                      onChanged: (_) => setDialogState(() {}),
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        for (int i = 0; i < 3; i++)
+                          Expanded(
+                            child: Container(
+                              height: 4,
+                              margin: EdgeInsets.only(right: i == 2 ? 0 : 4),
+                              decoration: BoxDecoration(
+                                color: (strength * 3).ceil() > i ? strengthColor : Colors.grey.withOpacity(0.3),
+                                borderRadius: BorderRadius.circular(2),
+                              ),
+                            ),
+                          ),
+                        const SizedBox(width: 8),
+                        Text(strengthLabel, style: TextStyle(color: strengthColor, fontSize: 12, fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: confirmCtrl,
+                      obscureText: true,
+                      decoration: const InputDecoration(labelText: 'Confirm Password', border: OutlineInputBorder()),
+                      validator: (v) => v != pwCtrl.text ? 'Passwords do not match' : null,
+                      onChanged: (_) => setDialogState(() {}),
+                    ),
+                  ],
+                ),
               ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: confirmCtrl,
-                obscureText: true,
-                decoration: const InputDecoration(labelText: 'Confirm Password', border: OutlineInputBorder()),
-                validator: (v) => v != pwCtrl.text ? 'Passwords do not match' : null,
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-          ElevatedButton(
-            onPressed: () async {
-              if (formKey.currentState!.validate()) {
-                try {
-                  final user = FirebaseAuth.instance.currentUser;
-                  if (user != null) {
-                    await user.updatePassword(pwCtrl.text.trim());
-                    if (ctx.mounted) {
-                      Navigator.pop(ctx);
-                      showTopNotification(context, 'Password updated successfully!', isSuccess: true);
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+              ElevatedButton(
+                onPressed: () async {
+                  if (formKey.currentState!.validate()) {
+                    try {
+                      final user = FirebaseAuth.instance.currentUser;
+                      if (user != null) {
+                        await user.updatePassword(pwCtrl.text.trim());
+                        if (ctx.mounted) {
+                          Navigator.pop(ctx);
+                          showTopNotification(context, 'Password updated successfully!', isSuccess: true);
+                        }
+                      }
+                    } catch (e) {
+                      if (ctx.mounted) {
+                        showTopNotification(context, 'Error: $e. Please re-login and try again.', isError: true);
+                      }
                     }
                   }
-                } catch (e) {
-                  if (ctx.mounted) {
-                    showTopNotification(context, 'Error: $e. Please re-login and try again.', isError: true);
-                  }
-                }
-              }
-            },
-            child: const Text('Update Password'),
-          ),
-        ],
+                },
+                style: ElevatedButton.styleFrom(backgroundColor: hwOrange, foregroundColor: Colors.white),
+                child: const Text('Update Password'),
+              ),
+            ],
+          );
+        },
       ),
     );
   }

@@ -3,14 +3,16 @@ import '../../core/theme/hardware_theme.dart';
 import '../../core/utils/responsive.dart';
 
 class ResponsivePageHeader extends StatelessWidget {
-  final IconData icon;
+  final IconData? icon;
+  final Widget? leading;
   final String title;
   final List<Widget> actions;
   final String? breadcrumb;
 
   const ResponsivePageHeader({
     super.key,
-    required this.icon,
+    this.icon,
+    this.leading,
     required this.title,
     this.actions = const [],
     this.breadcrumb,
@@ -21,19 +23,21 @@ class ResponsivePageHeader extends StatelessWidget {
     final p = Pal.of(context);
     final isMobile = Breakpoints.isMobile(context);
 
+    final leadingWidget = leading ?? (icon != null ? Icon(icon, color: hwOrange, size: isMobile ? 24 : 26) : const SizedBox.shrink());
+
     if (isMobile) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(icon, color: hwOrange, size: 24),
+              leadingWidget,
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
                   title,
                   style: ts(p.text, 20, FontWeight.w800),
-                  maxLines: 2,
+                  maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
@@ -58,7 +62,7 @@ class ResponsivePageHeader extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Icon(icon, color: hwOrange, size: 26),
+        leadingWidget,
         const SizedBox(width: 10),
         Expanded(
           child: Column(

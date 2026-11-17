@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/services/auth_service.dart';
 import '../../core/theme/hardware_theme.dart';
 import '../../core/utils/responsive.dart';
+import '../../core/components/top_notification.dart';
 import 'hover_sidebar.dart';
 
 class AdminScaffold extends StatelessWidget {
@@ -71,7 +72,7 @@ class AdminScaffold extends StatelessWidget {
                           shape: BoxShape.circle,
                           gradient: LinearGradient(colors: [hwOrange, hwRust]),
                         ),
-                        child: const Icon(Icons.hardware_rounded, color: Colors.white, size: 22),
+                        child: Image.asset('assets/icons/badge.png', height: 22, fit: BoxFit.contain),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
@@ -120,7 +121,7 @@ class AdminScaffold extends StatelessWidget {
                   title: const Text('Sign Out', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.w600)),
                   onTap: () {
                     Navigator.pop(context);
-                    authService.signOut();
+                    confirmAndSignOut(context, authService);
                   },
                 ),
               ],
@@ -172,7 +173,7 @@ class AdminScaffold extends StatelessWidget {
                           padding: const EdgeInsets.only(bottom: 24),
                           child: IconButton(
                             icon: const Icon(Icons.logout_rounded, color: Colors.redAccent),
-                            onPressed: () => authService.signOut(),
+                            onPressed: () => confirmAndSignOut(context, authService),
                             tooltip: 'Sign Out',
                           ),
                         ),
@@ -206,7 +207,7 @@ class AdminScaffold extends StatelessWidget {
               bottom: 0,
               child: HoverSidebar(
                 currentRoute: currentRoute,
-                onSignOut: () => authService.signOut(),
+                onSignOut: () => confirmAndSignOut(context, authService),
               ),
             ),
           ],

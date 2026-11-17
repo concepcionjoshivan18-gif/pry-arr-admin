@@ -32,16 +32,16 @@ class Pal extends InheritedWidget {
 
   Color get text => dark ? Colors.white : hwCharcoal;
   Color get sub => dark ? Colors.white70 : hwSteel;
-  Color get faint => dark ? Colors.white54 : Colors.black54;
+  Color get faint => dark ? Colors.white54 : const Color(0xFF4A5058);
   Color get amber => dark ? hwYellow : const Color(0xFFC98A00);
   Color get danger => dark ? const Color(0xFFFF6B5A) : hwRust;
   Color get ok => dark ? Colors.greenAccent : const Color(0xFF1B8A4B);
-  Color get fill => dark ? Colors.white.withValues(alpha: 0.08) : Colors.white.withValues(alpha: 0.80);
-  Color get line => dark ? Colors.white.withValues(alpha: 0.18) : Colors.black.withValues(alpha: 0.10);
+  Color get fill => dark ? Colors.white.withValues(alpha: 0.08) : Colors.white.withValues(alpha: 0.90);
+  Color get line => dark ? Colors.white.withValues(alpha: 0.18) : Colors.black.withValues(alpha: 0.18);
   Color get glassFill =>
-      dark ? Colors.white.withValues(alpha: 0.08) : Colors.white.withValues(alpha: 0.72);
+      dark ? Colors.white.withValues(alpha: 0.08) : Colors.white.withValues(alpha: 0.80);
   Color get glassBorder =>
-      dark ? Colors.white.withValues(alpha: 0.18) : Colors.white.withValues(alpha: 0.95);
+      dark ? Colors.white.withValues(alpha: 0.18) : Colors.black.withValues(alpha: 0.15);
   Color get shadow =>
       Colors.black.withValues(alpha: dark ? 0.30 : 0.08);
   Color get track =>

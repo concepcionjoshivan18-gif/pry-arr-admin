@@ -19,8 +19,9 @@ String cleanErrorMessage(String rawMessage) {
   } else if (msg.contains('Insufficient stock')) {
     int idx = msg.indexOf('Insufficient stock');
     msg = msg.substring(idx).trim();
-  } else if (msg.contains('Dart exception thrown from converted Future') || msg.contains('converted Future')) {
-    msg = 'Cannot complete operation. Please check stock availability and try again.';
+  } else if (msg.contains('Order cannot be cancelled')) {
+    int idx = msg.indexOf('Order cannot be cancelled');
+    msg = msg.substring(idx).trim();
   }
 
   return msg;
@@ -183,4 +184,26 @@ void showTopError(BuildContext context, String message, {Duration duration = con
 
 void showTopSuccess(BuildContext context, String message, {Duration duration = const Duration(seconds: 3)}) {
   showTopNotification(context, message, isError: false, isSuccess: true, duration: duration);
+}
+
+Future<void> confirmAndSignOut(BuildContext context, dynamic authService) async {
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('Sign Out'),
+      content: const Text('Are you sure you want to sign out?'),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+        ElevatedButton(
+          onPressed: () => Navigator.pop(ctx, true),
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, foregroundColor: Colors.white),
+          child: const Text('Sign Out'),
+        ),
+      ],
+    ),
+  );
+
+  if (confirmed == true) {
+    await authService.signOut();
+  }
 }

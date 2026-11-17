@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../core/services/firestore_service.dart';
@@ -47,13 +48,17 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
     _replyController.clear();
     final adminUser = auth.currentUser;
 
+    final conv = await FirebaseFirestore.instance
+        .collection('conversations').doc(_selectedChatId!).get();
+    final customerId = conv.data()?['customerId'] ?? '';
+
     final msg = ChatMessage(
       id: '',
       conversationId: _selectedChatId!,
       senderId: adminUser?.uid ?? 'admin',
       senderName: adminUser?.fullName.isNotEmpty == true ? adminUser!.fullName : 'PRY-ARR Admin',
-      senderRole: 'admin',
-      recipientId: _selectedChatId!.replaceAll('support_', ''),
+      senderRole: adminUser?.role ?? 'admin',
+      recipientId: customerId,
       text: text,
       timestamp: DateTime.now(),
     );
@@ -258,7 +263,7 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
                               final chat = chats[index];
                               final chatId = chat['chatId'] as String;
                               final lastMsg = chat['lastMessage'] ?? 'Inquiry received';
-                              final lastSender = chat['lastSender'] ?? 'Customer';
+                              final name = chat['customerName'] ?? chat['lastSender'] ?? 'Customer';
                               final isSelected = chatId == _selectedChatId;
 
                               return Padding(
@@ -267,7 +272,7 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
                                   onTap: () {
                                     setState(() {
                                       _selectedChatId = chatId;
-                                      _selectedCustomerName = lastSender;
+                                      _selectedCustomerName = name;
                                     });
                                   },
                                   child: Glass(
@@ -284,7 +289,7 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
                                           child: Column(
                                             crossAxisAlignment: CrossAxisAlignment.start,
                                             children: [
-                                              Text(lastSender, style: ts(p.text, 13, FontWeight.w700), maxLines: 1, overflow: TextOverflow.ellipsis),
+                                              Text(name, style: ts(p.text, 13, FontWeight.w700), maxLines: 1, overflow: TextOverflow.ellipsis),
                                               Text(lastMsg, style: ts(p.faint, 11), maxLines: 1, overflow: TextOverflow.ellipsis),
                                             ],
                                           ),

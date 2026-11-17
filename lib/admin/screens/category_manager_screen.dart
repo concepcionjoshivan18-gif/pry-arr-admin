@@ -10,6 +10,7 @@ import '../../core/utils/responsive.dart';
 import '../../core/components/top_notification.dart';
 import '../../core/components/responsive_page_header.dart';
 import '../../core/components/responsive_action_button.dart';
+import '../components/app_back_button.dart';
 
 class CategoryManagerScreen extends StatelessWidget {
   const CategoryManagerScreen({super.key});
@@ -68,7 +69,7 @@ class CategoryManagerScreen extends StatelessWidget {
               child: Column(
                 children: [
                   ResponsivePageHeader(
-                    icon: Icons.category_rounded,
+                    leading: const AppBackButton(),
                     title: 'Categories',
                     actions: [
                       ResponsiveActionButton(

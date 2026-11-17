@@ -160,25 +160,33 @@ class _AdminFeedbackScreenState extends State<AdminFeedbackScreen> {
                                     ),
                                   ),
                                   const SizedBox(width: 20),
-                                  Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Row(
-                                        children: [
-                                          _buildStarRating(avgScore, size: 20),
-                                          const SizedBox(width: 8),
-                                          Text(
-                                            '${filtered.length} Total Feedback Records',
-                                            style: TextStyle(fontWeight: FontWeight.bold, color: p.text),
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        'Feedback submitted by customers after completed orders',
-                                        style: TextStyle(fontSize: 12, color: p.faint),
-                                      ),
-                                    ],
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            _buildStarRating(avgScore, size: 20),
+                                            const SizedBox(width: 8),
+                                            Expanded(
+                                              child: Text(
+                                                '${filtered.length} Total Feedback Records',
+                                                style: TextStyle(fontWeight: FontWeight.bold, color: p.text),
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          'Feedback submitted by customers after completed orders',
+                                          style: TextStyle(fontSize: 12, color: p.faint),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                 ],
                               ),

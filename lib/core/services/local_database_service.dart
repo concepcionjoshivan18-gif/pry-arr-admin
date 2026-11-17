@@ -24,7 +24,7 @@ class LocalDatabaseService {
 
     return await openDatabase(
       path,
-      version: 1,
+      version: 2,
       onCreate: (db, version) async {
         // Inventory Cache Table
         await db.execute('''
@@ -49,6 +49,7 @@ class LocalDatabaseService {
             price REAL,
             qty INTEGER,
             variant TEXT,
+            imageUrl TEXT,
             isSelected INTEGER
           )
         ''');
@@ -62,6 +63,13 @@ class LocalDatabaseService {
             synced INTEGER
           )
         ''');
+      },
+      onUpgrade: (db, oldVersion, newVersion) async {
+        if (oldVersion < 2) {
+          try {
+            await db.execute('ALTER TABLE local_cart ADD COLUMN imageUrl TEXT');
+          } catch (_) {}
+        }
       },
     );
   }
@@ -132,6 +140,7 @@ class LocalDatabaseService {
         'price': item.price,
         'qty': item.qty,
         'variant': item.variant,
+        'imageUrl': item.imageUrl,
         'isSelected': item.isSelected ? 1 : 0,
       },
       conflictAlgorithm: ConflictAlgorithm.replace,
@@ -150,6 +159,7 @@ class LocalDatabaseService {
         price: (map['price'] ?? 0.0).toDouble(),
         qty: map['qty'] ?? 1,
         variant: map['variant'],
+        imageUrl: map['imageUrl'],
         isSelected: map['isSelected'] == 1,
       );
     }).toList();

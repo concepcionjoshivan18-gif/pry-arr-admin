@@ -90,7 +90,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           ResponsivePageHeader(
-                            icon: Icons.hardware_rounded,
+                            leading: Image.asset('assets/icons/badge.png', height: 42, width: 42, fit: BoxFit.contain),
                             title: 'Hardware Store Dashboard',
                             breadcrumb: 'Home / Dashboard / Overview',
                             actions: [

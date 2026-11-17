@@ -18,17 +18,21 @@ class AuthService extends ChangeNotifier {
   AppUser? _currentUser;
   bool _isLoading = true;
   bool _hasActiveSession = false;
+  bool _signingIn = false;
+  bool _registering = false;
   String? _loadError;
   String? _activeUid;
   StreamSubscription<DocumentSnapshot>? _userDocSubscription;
 
   AppUser? get currentUser => _currentUser;
   bool get isLoading => _isLoading;
+  bool get isSigningIn => _signingIn;
   String? get loadError => _loadError;
   bool get hasActiveSession => _auth.currentUser != null || _hasActiveSession;
 
   AuthService({this.target = AppTarget.storefront}) {
     _auth.authStateChanges().listen((User? user) async {
+      if (_signingIn || _registering) return;
       _loadError = null;
       debugPrint('[AUTH] authStateChanges fired -> target: $target, user: ${user?.uid}');
       if (user == null) {
@@ -49,7 +53,7 @@ class AuthService extends ChangeNotifier {
     });
   }
 
-  void _startUserDocListener(User firebaseUser) async {
+  Future<void> _startUserDocListener(User firebaseUser) async {
     _hasActiveSession = true;
     _loadError = null;
     _activeUid = firebaseUser.uid;
@@ -75,14 +79,20 @@ class AuthService extends ChangeNotifier {
       if (!doc.exists || doc.data() == null) {
         final email = firebaseUser.email ?? '';
         final isAdmin = email.toLowerCase().contains('admin');
+        if (!isAdmin) {
+          _currentUser = null;
+          _loadError = 'User profile not found for UID: ${firebaseUser.uid}';
+          _isLoading = false;
+          notifyListeners();
+          return;
+        }
         final defaultProfile = AppUser(
           uid: firebaseUser.uid,
           email: email,
-          firstName: isAdmin ? 'Josh' : (email == 'asa@gmail.com' ? 'Joshd' : 'Staff'),
-          lastName: isAdmin ? 'Concepcion' : (email == 'asa@gmail.com' ? 'Sdssdsd' : 'User'),
-          phone: email == 'asa@gmail.com' ? '09105402497' : '',
-          role: isAdmin ? 'admin' : 'staff',
-          assignedRole: isAdmin ? null : 'Sales',
+          firstName: 'Josh',
+          lastName: 'Concepcion',
+          phone: '',
+          role: 'admin',
           marketingOptIn: false,
           createdAt: DateTime.now(),
         );
@@ -104,7 +114,7 @@ class AuthService extends ChangeNotifier {
             _activeUid = null;
             _currentUser = null;
             _hasActiveSession = false;
-            _loadError = 'Walang access sa admin app';
+            _loadError = 'You do not have access to the admin app.';
             _isLoading = false;
             notifyListeners();
             await _auth.signOut();
@@ -126,7 +136,7 @@ class AuthService extends ChangeNotifier {
             _activeUid = null;
             _currentUser = null;
             _hasActiveSession = false;
-            _loadError = 'Gamitin ang admin app para sa account na ito';
+            _loadError = 'Please use the admin app for this account.';
             _isLoading = false;
             notifyListeners();
             await _auth.signOut();
@@ -134,12 +144,6 @@ class AuthService extends ChangeNotifier {
           }
 
           if (role == 'staff' || role == 'driver') {
-            final allowed = await canEnter(firebaseUser);
-            debugPrint('[AUTH] Storefront shift gate check for $role -> allowed: $allowed');
-            if (!allowed) {
-              await signOut(preserveError: 'Please time in with your RFID card at the device before signing in.');
-              return;
-            }
             startShiftWatch(firebaseUser);
           }
 
@@ -217,22 +221,35 @@ class AuthService extends ChangeNotifier {
   }
 
   Future<void> signInWithEmailAndPassword(String email, String password) async {
+    _signingIn = true;
     _isLoading = true;
     _loadError = null;
     notifyListeners();
 
     try {
       UserCredential cred = await _auth.signInWithEmailAndPassword(email: email.trim(), password: password);
-      if (cred.user != null) {
+      final user = cred.user;
+      if (user != null) {
+        final allowed = await canEnter(user);
+        debugPrint('[AUTH] sign-in uid=${user.uid} allowed=$allowed');
+        if (!allowed) {
+          await _auth.signOut();
+          _currentUser = null;
+          _hasActiveSession = false;
+          throw Exception('Please time in with your RFID card at the device before signing in.');
+        }
         _hasActiveSession = true;
-        // Auth state changes listener will handle target check and single snapshot loading
+        await _startUserDocListener(user);
       }
     } catch (e) {
       _hasActiveSession = false;
-      _isLoading = false;
       _loadError = e.toString();
       notifyListeners();
       rethrow;
+    } finally {
+      _signingIn = false;
+      _isLoading = false;
+      notifyListeners();
     }
   }
 
@@ -246,7 +263,11 @@ class AuthService extends ChangeNotifier {
     String? businessName,
     required bool marketingOptIn,
     DateTime? birthday,
+    String? address,
+    String? gender,
+    String? emergencyContact,
   }) async {
+    _registering = true;
     _isLoading = true;
     _loadError = null;
     notifyListeners();
@@ -260,6 +281,10 @@ class AuthService extends ChangeNotifier {
       newlyCreatedAuthUser = credential.user;
 
       if (newlyCreatedAuthUser != null) {
+        try {
+          await newlyCreatedAuthUser.getIdToken(true);
+        } catch (_) {}
+
         AppUser newUserProfile = AppUser(
           uid: newlyCreatedAuthUser.uid,
           email: email.trim(),
@@ -272,9 +297,19 @@ class AuthService extends ChangeNotifier {
           marketingOptIn: marketingOptIn,
           createdAt: DateTime.now(),
           birthday: birthday,
+          address: address?.trim() ?? '',
+          gender: gender ?? '',
+          emergencyContact: emergencyContact?.trim() ?? '',
         );
 
-        await _db.collection('users').doc(newlyCreatedAuthUser.uid).set(newUserProfile.toMap());
+        try {
+          await _db.collection('users').doc(newlyCreatedAuthUser.uid).set(newUserProfile.toMap());
+        } catch (e) {
+          debugPrint('[AUTH] Initial set failed ($e), retrying set with merge...');
+          await Future.delayed(const Duration(milliseconds: 300));
+          await _db.collection('users').doc(newlyCreatedAuthUser.uid).set(newUserProfile.toMap(), SetOptions(merge: true));
+        }
+
         _currentUser = newUserProfile;
         _hasActiveSession = true;
       }
@@ -286,6 +321,7 @@ class AuthService extends ChangeNotifier {
       }
       rethrow;
     } finally {
+      _registering = false;
       _isLoading = false;
       notifyListeners();
     }
@@ -363,13 +399,14 @@ class AuthService extends ChangeNotifier {
   Future<void> signOut({String? preserveError}) async {
     final err = preserveError ?? _loadError;
     stopShiftWatch();
-    _userDocSubscription?.cancel();
+    await _userDocSubscription?.cancel();
     _userDocSubscription = null;
+    NotificationService.instance.stopListening();
+    await _auth.signOut();
     _activeUid = null;
     _hasActiveSession = false;
     _currentUser = null;
     _loadError = err;
     notifyListeners();
-    await _auth.signOut();
   }
 }

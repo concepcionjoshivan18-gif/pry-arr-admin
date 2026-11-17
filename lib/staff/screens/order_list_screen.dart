@@ -7,6 +7,7 @@ import '../../core/services/auth_service.dart';
 import '../../core/models/order.dart';
 import '../../core/theme/hardware_theme.dart';
 import '../../core/components/skeleton_loader.dart';
+import '../../core/components/top_notification.dart';
 import '../../admin/screens/admin_chat_screen.dart';
 
 class OrderListScreen extends StatefulWidget {
@@ -63,7 +64,7 @@ class _OrderListScreenState extends State<OrderListScreen> {
           ),
           IconButton(
             icon: Icon(Icons.logout, color: p.text),
-            onPressed: () => authService.signOut(),
+            onPressed: () => confirmAndSignOut(context, authService),
             tooltip: 'Sign Out',
           ),
         ],

@@ -136,16 +136,22 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
         _errorMessage = null;
       }
     } catch (e) {
-      if (mounted) {
-        _failedLoginAttempts++;
-        _shakeController?.forward(from: 0);
-        if (_failedLoginAttempts >= 5) {
-          _startLockoutTimer();
-        } else {
-          setState(() {
-            _errorMessage = _friendlyAuthError(e);
-          });
-        }
+      if (!mounted) return;
+
+      final raw = e.toString().replaceFirst('Exception: ', '');
+      final isShiftBlock = raw.contains('time in with your RFID');
+
+      setState(() {
+        // Ipinapakita sa banner sa loob ng card
+        _errorMessage = _friendlyAuthError(e);
+        // Huwag bilangin ang RFID block bilang maling password
+        if (!isShiftBlock) _failedLoginAttempts++;
+      });
+
+      _shakeController?.forward(from: 0);
+
+      if (!isShiftBlock && _failedLoginAttempts >= 5) {
+        _startLockoutTimer();
       }
     }
   }
@@ -238,19 +244,21 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                           children: [
                             Center(
                               child: Container(
-                                padding: const EdgeInsets.all(10),
+                                width: 72,
+                                height: 72,
                                 decoration: BoxDecoration(
-                                  gradient: const LinearGradient(colors: [_hwOrange, _hwRust]),
                                   shape: BoxShape.circle,
                                   boxShadow: [
                                     BoxShadow(
-                                      color: _hwOrange.withValues(alpha: 0.5),
-                                      blurRadius: 16,
+                                      color: _hwOrange.withValues(alpha: 0.6),
+                                      blurRadius: 18,
                                       offset: const Offset(0, 6),
                                     ),
                                   ],
                                 ),
-                                child: const Icon(Icons.hardware_rounded, color: Colors.white, size: 26),
+                                child: ClipOval(
+                                  child: Image.asset('assets/icons/badge.png', fit: BoxFit.cover),
+                                ),
                               ),
                             ),
                             const SizedBox(height: 10),

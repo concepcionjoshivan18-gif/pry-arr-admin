@@ -1,5 +1,7 @@
 import 'dart:ui';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../core/services/firestore_service.dart';
@@ -29,6 +31,18 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
   final Set<String> _selectedOrderIds = {};
   bool _showArchived = false;
   String _statusSort = 'default';
+
+  late final Stream<List<OrderModel>> _ordersStream;
+  late final Stream<List<ReviewModel>> _reviewsStream;
+
+  @override
+  void initState() {
+    super.initState();
+    final fs = Provider.of<FirestoreService>(context, listen: false);
+    final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    _ordersStream = fs.streamMyOrders(uid);
+    _reviewsStream = fs.streamAllReviews();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -71,7 +85,10 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
                     children: [
                       Expanded(
                         child: GestureDetector(
-                          onTap: () => setState(() => _showArchived = false),
+                          onTap: () => setState(() {
+                            _showArchived = false;
+                            _currentPage = 1;
+                          }),
                           child: Container(
                             padding: const EdgeInsets.symmetric(vertical: 12),
                             alignment: Alignment.center,
@@ -87,7 +104,10 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
                       const SizedBox(width: 10),
                       Expanded(
                         child: GestureDetector(
-                          onTap: () => setState(() => _showArchived = true),
+                          onTap: () => setState(() {
+                            _showArchived = true;
+                            _currentPage = 1;
+                          }),
                           child: Container(
                             padding: const EdgeInsets.symmetric(vertical: 12),
                             alignment: Alignment.center,
@@ -106,7 +126,10 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
                         child: PopupMenuButton<String>(
                           icon: const Icon(Icons.sort_rounded, color: hwOrange, size: 20),
                           tooltip: 'Sort by Status',
-                          onSelected: (val) => setState(() => _statusSort = val),
+                          onSelected: (val) => setState(() {
+                            _statusSort = val;
+                            _currentPage = 1;
+                          }),
                           itemBuilder: (context) => [
                             const PopupMenuItem(value: 'default', child: Text('All (Newest)')),
                             const PopupMenuItem(value: 'pending', child: Text('Pending')),
@@ -121,7 +144,7 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
                 ),
                 Expanded(
                   child: StreamBuilder<List<ReviewModel>>(
-                    stream: firestoreService.streamAllReviews(),
+                    stream: _reviewsStream,
                     builder: (context, reviewSnapshot) {
                       if (reviewSnapshot.hasData) {
                         for (var rev in reviewSnapshot.data!) {
@@ -133,9 +156,14 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
                       }
 
                       return StreamBuilder<List<OrderModel>>(
-                        stream: firestoreService.streamAllOrders(),
+                        stream: _ordersStream,
                         builder: (context, snapshot) {
-                          if (snapshot.connectionState == ConnectionState.waiting) {
+                          if (snapshot.hasError) {
+                            return Center(
+                              child: Text('Error: ${snapshot.error}', style: ts(p.danger, 14)),
+                            );
+                          }
+                          if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
                             return ListView.builder(
                               padding: const EdgeInsets.symmetric(horizontal: 20),
                               itemCount: 4,
@@ -146,15 +174,27 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
                             );
                           }
                           final user = authService.currentUser;
+                          final firebaseUser = FirebaseAuth.instance.currentUser;
+                          final currentUid = user?.uid ?? firebaseUser?.uid ?? userId;
+                          final currentEmail = user?.email ?? firebaseUser?.email ?? '';
                           final archivedIds = user?.archivedOrders ?? [];
-                          final allUserOrders = snapshot.data?.where((o) => o.customerId == userId).toList() ?? [];
+
+                          final allUserOrders = snapshot.data?.where((o) {
+                            if (currentUid.isNotEmpty && o.customerId.trim() == currentUid.trim()) return true;
+                            if (currentEmail.isNotEmpty && o.customerId.trim().toLowerCase() == currentEmail.trim().toLowerCase()) return true;
+                            if (firebaseUser?.uid != null && o.customerId.trim() == firebaseUser!.uid.trim()) return true;
+                            return false;
+                          }).toList() ?? [];
+
+                          allUserOrders.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
                           final orders = allUserOrders.where((o) => _showArchived ? archivedIds.contains(o.id) : !archivedIds.contains(o.id)).toList();
 
                           if (_statusSort != 'default') {
                             orders.sort((a, b) {
                               if (a.status.toLowerCase() == _statusSort && b.status.toLowerCase() != _statusSort) return -1;
                               if (b.status.toLowerCase() == _statusSort && a.status.toLowerCase() != _statusSort) return 1;
-                              return 0;
+                              return b.createdAt.compareTo(a.createdAt);
                             });
                           }
 
@@ -165,18 +205,15 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
                                 children: [
                                   Icon(Icons.receipt_long_outlined, size: 64, color: p.faint),
                                   const SizedBox(height: 12),
-                                  Text('You have no orders yet.', style: ts(p.faint, 16)),
+                                  Text(_showArchived ? 'No archived orders.' : 'You have no orders yet.', style: ts(p.faint, 16)),
                                 ],
                               ),
                             );
                           }
 
                           final totalPages = (orders.length / _itemsPerPage).ceil();
-                          if (_currentPage > totalPages) {
-                            _currentPage = totalPages > 0 ? totalPages : 1;
-                          }
-
-                          final startIndex = (_currentPage - 1) * _itemsPerPage;
+                          final int validPage = _currentPage.clamp(1, math.max(1, totalPages)).toInt();
+                          final int startIndex = (validPage - 1) * _itemsPerPage;
                           final pagedOrders = orders.skip(startIndex).take(_itemsPerPage).toList();
 
                           return Column(

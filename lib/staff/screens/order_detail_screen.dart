@@ -43,7 +43,9 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                     children: [
                       const Icon(Icons.location_on_rounded, color: hwOrange, size: 22),
                       const SizedBox(width: 8),
-                      const Text('Delivery Destination & Address', style: TextStyle(color: hwOrange, fontSize: 14, fontWeight: FontWeight.bold)),
+                      const Expanded(
+                        child: Text('Delivery Destination & Address', style: TextStyle(color: hwOrange, fontSize: 14, fontWeight: FontWeight.bold)),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 8),
@@ -57,9 +59,11 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                       children: [
                         const Icon(Icons.pin_drop_rounded, color: hwOrange, size: 14),
                         const SizedBox(width: 4),
-                        Text(
-                          'GPS Coordinates: ${widget.order.deliveryLat!.toStringAsFixed(4)}° N, ${widget.order.deliveryLng!.toStringAsFixed(4)}° E',
-                          style: const TextStyle(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.bold),
+                        Expanded(
+                          child: Text(
+                            'GPS Coordinates: ${widget.order.deliveryLat!.toStringAsFixed(4)}° N, ${widget.order.deliveryLng!.toStringAsFixed(4)}° E',
+                            style: const TextStyle(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.bold),
+                          ),
                         ),
                       ],
                     ),

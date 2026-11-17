@@ -4,6 +4,7 @@ import '../../core/services/firestore_service.dart';
 import '../../core/services/auth_service.dart';
 import '../../core/models/inventory_item.dart';
 import '../../core/utils/item_image_helper.dart';
+import '../../core/components/top_notification.dart';
 
 class InventoryViewScreen extends StatelessWidget {
   const InventoryViewScreen({super.key});
@@ -21,7 +22,7 @@ class InventoryViewScreen extends StatelessWidget {
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),
-            onPressed: () => authService.signOut(),
+            onPressed: () => confirmAndSignOut(context, authService),
             tooltip: 'Sign Out',
           ),
         ],

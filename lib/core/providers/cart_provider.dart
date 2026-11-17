@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/cart_item.dart';
 import '../models/inventory_item.dart';
 import '../services/local_database_service.dart';
+import '../utils/item_image_helper.dart';
 
 class CartProvider extends ChangeNotifier {
   final Map<String, CartItem> _items = {};
@@ -15,7 +16,8 @@ class CartProvider extends ChangeNotifier {
       final localItems = await LocalDatabaseService().getLocalCart();
       _items.clear();
       for (var item in localItems) {
-        _items[item.id] = item;
+        final clean = firstImageSource(item.imageUrl);
+        _items[item.id] = clean == item.imageUrl ? item : item.copyWith(imageUrl: clean);
       }
       notifyListeners();
     } catch (_) {}
@@ -51,14 +53,14 @@ class CartProvider extends ChangeNotifier {
   }) async {
     final String key = variant != null ? '${item.id}_$variant' : item.id;
     final double finalPrice = priceOverride ?? item.displayPrice;
-    final String? imgUrl = item.imageUrls.isNotEmpty ? item.imageUrls.first : null;
+    final String? imgUrl = firstImageSource(item.imageUrls.isNotEmpty ? item.imageUrls.first : null);
 
     if (_items.containsKey(key)) {
       _items.update(
         key,
         (existing) => existing.copyWith(
           qty: existing.qty + quantity,
-          imageUrl: existing.imageUrl ?? imgUrl,
+          imageUrl: imgUrl ?? existing.imageUrl,
           deliveryOption: deliveryOption ?? existing.deliveryOption,
           deliveryAddress: deliveryAddress ?? existing.deliveryAddress,
         ),

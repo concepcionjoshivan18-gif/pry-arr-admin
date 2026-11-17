@@ -240,12 +240,7 @@ class _AccountScreenState extends State<AccountScreen> {
             const SizedBox(height: 18),
             // Sign Out
             GestureDetector(
-              onTap: () async {
-                await authService.signOut();
-                if (context.mounted) {
-                  context.go('/login');
-                }
-              },
+              onTap: () => confirmAndSignOut(context, authService),
               child: Container(
                 padding: const EdgeInsets.symmetric(vertical: 15),
                 decoration: BoxDecoration(

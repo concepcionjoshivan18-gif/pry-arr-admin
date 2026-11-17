@@ -136,11 +136,22 @@ class NotificationService {
   final Map<String, String> _knownOrderStatuses = {};
   bool _isInitialOrderLoad = true;
 
+  void stopListening() {
+    _orderSubscription?.cancel();
+    _orderSubscription = null;
+    _knownOrderStatuses.clear();
+    _isInitialOrderLoad = true;
+  }
+
   void startListeningToOrders(dynamic firestoreService, dynamic authService) {
     _orderSubscription?.cancel();
     _isInitialOrderLoad = true;
-    _orderSubscription = firestoreService.streamAllOrders().listen((orders) {
-      final user = authService.currentUser;
+    final user = authService.currentUser;
+    final stream = (user != null && user.role.toLowerCase() == 'customer')
+        ? firestoreService.streamCustomerOrders(user.uid)
+        : firestoreService.streamAllOrders();
+
+    _orderSubscription = stream.listen((orders) {
       if (user == null) {
         _isInitialOrderLoad = false;
         return;
@@ -168,7 +179,7 @@ class NotificationService {
           }
 
           // If driver
-          if (user.isDriver && (order.status == 'processing' || order.status == 'ready')) {
+          if (user.isDriver && order.status == 'out_for_delivery') {
             showNotification(
               title: '🛵 New Delivery Assigned!',
               body: 'Order #${order.id.substring(0, order.id.length > 5 ? 5 : order.id.length)} is ready for delivery.',
@@ -189,7 +200,20 @@ class NotificationService {
                 title: '🚀 Out for Delivery!',
                 body: 'Your order #${order.id.substring(0, order.id.length > 5 ? 5 : order.id.length)} is out for delivery.',
               );
+            } else if (order.status == 'completed') {
+              showNotification(
+                title: '🎉 Order Delivered!',
+                body: 'Your order #${order.id.substring(0, order.id.length > 5 ? 5 : order.id.length)} has been delivered successfully. Thank you!',
+              );
             }
+          }
+
+          // If driver
+          if (user.isDriver && order.status == 'out_for_delivery') {
+            showNotification(
+              title: '🛵 New Delivery Assigned!',
+              body: 'Order #${order.id.substring(0, order.id.length > 5 ? 5 : order.id.length)} has been forwarded for delivery.',
+            );
           }
         }
       }

@@ -196,12 +196,7 @@ class _StaffProfileScreenState extends State<StaffProfileScreen> {
 
             // Sign Out Button
             GestureDetector(
-              onTap: () async {
-                await authService.signOut();
-                if (context.mounted) {
-                  context.go('/login');
-                }
-              },
+              onTap: () => confirmAndSignOut(context, authService),
               child: Container(
                 padding: const EdgeInsets.symmetric(vertical: 15),
                 decoration: BoxDecoration(

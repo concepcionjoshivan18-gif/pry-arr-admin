@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -7,44 +8,39 @@ const rfidRoles = {'staff', 'driver'};
 StreamSubscription<DocumentSnapshot>? _shiftSubscription;
 
 Future<bool> canEnter(User user) async {
+  DocumentSnapshot<Map<String, dynamic>> doc;
   try {
-    DocumentSnapshot? doc;
-    try {
-      doc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .get(const GetOptions(source: Source.server))
-          .timeout(const Duration(seconds: 3));
-    } catch (_) {
-      try {
-        doc = await FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.uid)
-            .get(const GetOptions(source: Source.cache));
-      } catch (_) {}
-    }
-
-    if (doc == null || !doc.exists) return true; // Default allow if user profile not yet created
-    final data = doc.data() as Map<String, dynamic>?;
-    if (data == null) return true;
-    
-    final role = (data['role']?.toString() ?? '').toLowerCase();
-    
-    // Customers and Admins never need to time in with RFID
-    if (role == 'customer' || role == 'admin' || role.isEmpty) {
-      return true;
-    }
-
-    // Only staff and drivers require onShift == true
-    if (rfidRoles.contains(role)) {
-      final onShift = data['onShift'] == true;
-      return onShift;
-    }
-
-    return true;
-  } catch (_) {
-    return true; // Default allow on error to prevent accidental lockouts/hangs
+    doc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .get(const GetOptions(source: Source.server))
+        .timeout(const Duration(seconds: 8));
+  } catch (e) {
+    debugPrint('[AUTH] canEnter: hindi nabasa ang profile, BLOCK. error=$e');
+    return false;
   }
+
+  if (!doc.exists || doc.data() == null) {
+    debugPrint('[AUTH] canEnter: walang profile doc para sa ${user.uid}, BLOCK');
+    return false;
+  }
+
+  final data = doc.data()!;
+  final role = (data['role']?.toString() ?? '').toLowerCase();
+
+  if (role == 'customer' || role == 'admin') {
+    debugPrint('[AUTH] canEnter: role=$role, ALLOW');
+    return true;
+  }
+
+  if (rfidRoles.contains(role)) {
+    final onShift = data['onShift'] == true;
+    debugPrint('[AUTH] canEnter: role=$role onShift=$onShift -> ${onShift ? "ALLOW" : "BLOCK"}');
+    return onShift;
+  }
+
+  debugPrint('[AUTH] canEnter: hindi kilalang role "$role", BLOCK');
+  return false;
 }
 
 void startShiftWatch(User user) {
@@ -54,7 +50,7 @@ void startShiftWatch(User user) {
     final data = doc.data();
     if (data == null) return;
     final role = (data['role']?.toString() ?? '').toLowerCase();
-    if (rfidRoles.contains(role)) {
+    if (role.isEmpty || rfidRoles.contains(role)) {
       final onShift = data['onShift'] == true;
       if (!onShift) {
         FirebaseAuth.instance.signOut();

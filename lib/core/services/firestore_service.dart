@@ -55,9 +55,23 @@ class FirestoreService {
     });
   }
 
+  Stream<List<OrderModel>> streamCustomerOrders(String uid) {
+    return _db
+        .collection('orders')
+        .where('customerId', isEqualTo: uid)
+        .snapshots()
+        .map((snapshot) {
+      final list = snapshot.docs.map((doc) => OrderModel.fromMap(doc.data(), doc.id)).toList();
+      list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return list;
+    });
+  }
+
+  Stream<List<OrderModel>> streamMyOrders(String uid) => streamCustomerOrders(uid);
+
   // --- STAFF/ACCOUNTS STREAMS ---
   Stream<List<AppUser>> streamStaffAccounts() {
-    return _db.collection('users').where('role', isEqualTo: 'staff').snapshots().map((snapshot) {
+    return _db.collection('users').where('role', whereIn: ['staff', 'driver']).snapshots().map((snapshot) {
       return snapshot.docs.map((doc) => AppUser.fromMap(doc.data(), doc.id)).toList();
     });
   }
@@ -69,7 +83,11 @@ class FirestoreService {
   }
 
   Stream<List<AppUser>> streamAllAccounts() {
-    return _db.collection('users').where('role', whereIn: ['staff', 'customer']).snapshots().map((snapshot) {
+    return _db
+        .collection('users')
+        .where('role', whereIn: ['staff', 'driver', 'customer'])
+        .snapshots()
+        .map((snapshot) {
       return snapshot.docs.map((doc) => AppUser.fromMap(doc.data(), doc.id)).toList();
     });
   }
@@ -221,126 +239,42 @@ class FirestoreService {
         'loyaltyPoints': FieldValue.increment(-pointsRedeemed),
       }).timeout(const Duration(milliseconds: 300)).catchError((_) {});
     }
-
-    // 4. Trigger notification for staff (New Order Received)
-    NotificationService.instance.showNotification(
-      title: '📦 New Order Received!',
-      body: 'Order #${orderRef.id.substring(0, orderRef.id.length > 5 ? 5 : orderRef.id.length)} was placed.',
-    );
   }
 
-  // --- ATOMIC ORDER COMPLETION (Staff) ---
+  // --- ATOMIC ORDER COMPLETION (Staff / Driver) ---
   Future<void> finalizeOrder(OrderModel order, AppUser staffUser) async {
-    await _db.runTransaction((transaction) async {
-      // 1. ALL READS FIRST (Required by Cloud Firestore Transactions)
-      Map<String, DocumentSnapshot> itemSnapshots = {};
-      
-      for (var item in order.items) {
-        if (item.productId.isEmpty) continue;
-        
-        DocumentReference invRef = _db.collection('inventory').doc(item.productId);
-        DocumentSnapshot invSnap = await transaction.get(invRef);
-        
-        if (invSnap.exists) {
-          itemSnapshots[item.productId] = invSnap;
-        } else {
-          // Check products collection as fallback
-          DocumentReference prodRef = _db.collection('products').doc(item.productId);
-          DocumentSnapshot prodSnap = await transaction.get(prodRef);
-          if (prodSnap.exists) {
-            itemSnapshots[item.productId] = prodSnap;
-          }
-        }
-      }
+    final orderRef = _db.collection('orders').doc(order.id);
 
-      DocumentReference orderRef = _db.collection('orders').doc(order.id);
-      DocumentSnapshot orderSnap = await transaction.get(orderRef);
+    // 1. Mark order as completed
+    await orderRef.set({
+      'status': 'completed',
+      'updatedAt': Timestamp.now(),
+    }, SetOptions(merge: true));
 
-      DocumentReference userRef = _db.collection('users').doc(order.customerId);
-      DocumentSnapshot userSnap = await transaction.get(userRef);
+    // 2. Record the sale
+    final saleRef = _db.collection('sales').doc();
+    final sale = SaleModel(
+      id: saleRef.id,
+      orderId: order.id,
+      totalAmount: order.total,
+      staffId: staffUser.uid,
+      staffName: staffUser.fullName,
+      createdAt: DateTime.now(),
+      items: order.items,
+    );
+    await saleRef.set(sale.toMap());
 
-      // 2. ALL WRITES SECOND
-      // Check stock and update quantities for found items
-      for (var item in order.items) {
-        var snap = itemSnapshots[item.productId];
-        if (snap == null || !snap.exists || snap.data() == null) continue;
-
-        var data = snap.data() as Map<String, dynamic>;
-
-        if (data.containsKey('variants') && data['variants'] is List) {
-          var inventoryItem = InventoryItem.fromMap(data, snap.id);
-          
-          int variantIndex = inventoryItem.variants.indexWhere((v) => v.name == (item.variant ?? 'Standard'));
-          if (variantIndex == -1) variantIndex = 0; // Fallback to first variant if name changed
-          
-          if (inventoryItem.variants.isNotEmpty && variantIndex < inventoryItem.variants.length) {
-            var variant = inventoryItem.variants[variantIndex];
-            int newQty = (variant.quantity - item.qty).clamp(0, 999999);
-
-            List<Map<String, dynamic>> updatedVariants = inventoryItem.variants.map((v) {
-              if (v.name == variant.name) {
-                return {
-                  'name': v.name,
-                  'quantity': newQty,
-                  'price': v.price,
-                };
-              }
-              return v.toMap();
-            }).toList();
-
-            transaction.update(snap.reference, {
-              'variants': updatedVariants,
-              'updatedAt': Timestamp.now(),
-            });
-          }
-        } else if (data.containsKey('stockQty')) {
-          int currentStock = (data['stockQty'] ?? 0) as int;
-          int newStock = (currentStock - item.qty).clamp(0, 999999);
-          transaction.update(snap.reference, {
-            'stockQty': newStock,
-          });
-        }
-      }
-
-      // 3. Mark order as completed
-      if (orderSnap.exists) {
-        transaction.update(orderRef, {
-          'status': 'completed',
-          'updatedAt': Timestamp.now(),
-        });
-      } else {
-        transaction.set(orderRef, {
-          'status': 'completed',
-          'updatedAt': Timestamp.now(),
+    // 3. Add loyalty points earned to customer if any
+    if (order.pointsEarned > 0 && order.customerId.trim().isNotEmpty) {
+      try {
+        final userRef = _db.collection('users').doc(order.customerId.trim());
+        await userRef.set({
+          'loyaltyPoints': FieldValue.increment(order.pointsEarned),
         }, SetOptions(merge: true));
+      } catch (e) {
+        debugPrint('Error restoring points to customer ${order.customerId}: $e');
       }
-
-      // 4. Record the sale
-      DocumentReference saleRef = _db.collection('sales').doc();
-      SaleModel sale = SaleModel(
-        id: saleRef.id,
-        orderId: order.id,
-        totalAmount: order.total,
-        staffId: staffUser.uid,
-        staffName: staffUser.fullName,
-        createdAt: DateTime.now(),
-        items: order.items,
-      );
-      transaction.set(saleRef, sale.toMap());
-
-      // 5. Add loyalty points earned to customer
-      if (order.pointsEarned > 0 && order.customerId.isNotEmpty) {
-        if (userSnap.exists) {
-          transaction.update(userRef, {
-            'loyaltyPoints': FieldValue.increment(order.pointsEarned),
-          });
-        } else {
-          transaction.set(userRef, {
-            'loyaltyPoints': FieldValue.increment(order.pointsEarned),
-          }, SetOptions(merge: true));
-        }
-      }
-    });
+    }
   }
 
   // --- CRUD OPERATIONS ---
@@ -448,73 +382,64 @@ class FirestoreService {
       return;
     }
     if (status == 'processing') {
-      await _db.runTransaction((transaction) async {
-        // 1. ALL READS FIRST
-        DocumentReference orderRef = _db.collection('orders').doc(id);
-        DocumentSnapshot orderSnap = await transaction.get(orderRef);
-        if (!orderSnap.exists) throw Exception('Order not found.');
+      final orderRef = _db.collection('orders').doc(id);
+      final orderSnap = await orderRef.get();
+      if (!orderSnap.exists || orderSnap.data() == null) throw Exception('Order not found.');
 
-        OrderModel order = OrderModel.fromMap(orderSnap.data() as Map<String, dynamic>, orderSnap.id);
-        
-        Map<String, DocumentSnapshot> invSnapshots = {};
-        if (order.status == 'pending') {
-          for (var item in order.items) {
-            if (item.productId.isEmpty) continue;
-            DocumentReference invRef = _db.collection('inventory').doc(item.productId);
-            DocumentSnapshot invSnap = await transaction.get(invRef);
-            if (!invSnap.exists) {
-              throw Exception('Product ${item.name} not found in inventory.');
-            }
-            invSnapshots[item.productId] = invSnap;
+      OrderModel order = OrderModel.fromMap(orderSnap.data()!, orderSnap.id);
+
+      if (order.status == 'pending') {
+        for (var item in order.items) {
+          if (item.productId.isEmpty) continue;
+          final invRef = _db.collection('inventory').doc(item.productId);
+          final invSnap = await invRef.get();
+          if (!invSnap.exists || invSnap.data() == null) {
+            throw Exception('Product ${item.name} not found in inventory.');
           }
-        }
 
-        // 2. ALL WRITES SECOND
-        if (order.status == 'pending') {
-          for (var item in order.items) {
-            if (item.productId.isEmpty) continue;
-            DocumentSnapshot? invSnap = invSnapshots[item.productId];
-            if (invSnap == null || !invSnap.exists || invSnap.data() == null) continue;
+          InventoryItem invItem = InventoryItem.fromMap(invSnap.data()!, invSnap.id);
+          bool updated = false;
 
-            InventoryItem invItem = InventoryItem.fromMap(invSnap.data() as Map<String, dynamic>, invSnap.id);
-            
-            if (item.variant != null && item.variant!.isNotEmpty) {
-              int vIndex = invItem.variants.indexWhere((v) => v.name == item.variant);
-              if (vIndex == -1) {
-                throw Exception('Variant ${item.variant} for ${item.name} not found.');
-              }
-              if (invItem.variants[vIndex].quantity < item.qty) {
-                throw Exception('Cannot accept order: Insufficient stock for ${item.name} (${item.variant}). Available: ${invItem.variants[vIndex].quantity}, Requested: ${item.qty}');
-              }
-              invItem.variants[vIndex] = ProductVariant(
-                name: invItem.variants[vIndex].name,
-                quantity: invItem.variants[vIndex].quantity - item.qty,
-                price: invItem.variants[vIndex].price,
-              );
-            } else {
-              if (invItem.variants.isNotEmpty) {
-                if (invItem.variants.first.quantity < item.qty) {
-                  throw Exception('Cannot accept order: Insufficient stock for ${item.name}. Available: ${invItem.variants.first.quantity}, Requested: ${item.qty}');
-                }
-                invItem.variants[0] = ProductVariant(
-                  name: invItem.variants[0].name,
-                  quantity: invItem.variants[0].quantity - item.qty,
-                  price: invItem.variants[0].price,
-                );
-              }
+          if (item.variant != null && item.variant!.isNotEmpty) {
+            int vIndex = invItem.variants.indexWhere((v) => v.name == item.variant);
+            if (vIndex == -1) {
+              throw Exception('Variant ${item.variant} for ${item.name} not found.');
             }
+            if (invItem.variants[vIndex].quantity < item.qty) {
+              throw Exception('Cannot accept order: Insufficient stock for ${item.name} (${item.variant}). Available: ${invItem.variants[vIndex].quantity}, Requested: ${item.qty}');
+            }
+            invItem.variants[vIndex] = ProductVariant(
+              name: invItem.variants[vIndex].name,
+              quantity: invItem.variants[vIndex].quantity - item.qty,
+              price: invItem.variants[vIndex].price,
+            );
+            updated = true;
+          } else {
+            if (invItem.variants.isNotEmpty) {
+              if (invItem.variants.first.quantity < item.qty) {
+                throw Exception('Cannot accept order: Insufficient stock for ${item.name}. Available: ${invItem.variants.first.quantity}, Requested: ${item.qty}');
+              }
+              invItem.variants[0] = ProductVariant(
+                name: invItem.variants[0].name,
+                quantity: invItem.variants[0].quantity - item.qty,
+                price: invItem.variants[0].price,
+              );
+              updated = true;
+            }
+          }
 
-            transaction.update(invSnap.reference, {
+          if (updated) {
+            await invRef.update({
               'variants': invItem.variants.map((v) => v.toMap()).toList(),
               'updatedAt': Timestamp.now(),
             });
           }
         }
+      }
 
-        transaction.update(orderRef, {
-          'status': status,
-          'updatedAt': Timestamp.now(),
-        });
+      await orderRef.update({
+        'status': status,
+        'updatedAt': Timestamp.now(),
       });
     } else {
       await _db.collection('orders').doc(id).update({'status': status, 'updatedAt': Timestamp.now()});
@@ -543,62 +468,50 @@ class FirestoreService {
   }
 
   Future<void> cancelOrder(String orderId) async {
-    await _db.runTransaction((transaction) async {
-      // 1. ALL READS FIRST
-      DocumentReference orderRef = _db.collection('orders').doc(orderId);
-      DocumentSnapshot orderSnap = await transaction.get(orderRef);
-      
-      if (!orderSnap.exists) throw Exception('Order not found.');
-      
-      OrderModel order = OrderModel.fromMap(orderSnap.data() as Map<String, dynamic>, orderSnap.id);
-      
-      if (order.status == 'cancelled' || order.status == 'completed') {
-        throw Exception('Order cannot be cancelled in its current state.');
+    final orderRef = _db.collection('orders').doc(orderId);
+    final orderSnap = await orderRef.get();
+    
+    if (!orderSnap.exists || orderSnap.data() == null) {
+      throw Exception('Order not found.');
+    }
+    
+    OrderModel order = OrderModel.fromMap(orderSnap.data()!, orderSnap.id);
+    
+    if (order.status == 'cancelled' || order.status == 'completed') {
+      throw Exception('Order cannot be cancelled in its current state.');
+    }
+
+    // 1. Mark order as cancelled
+    await orderRef.update({
+      'status': 'cancelled',
+      'updatedAt': Timestamp.now(),
+    });
+
+    // 2. Return redeemed points to customer if any
+    if (order.pointsRedeemed > 0 && order.customerId.trim().isNotEmpty) {
+      try {
+        final userRef = _db.collection('users').doc(order.customerId.trim());
+        await userRef.update({
+          'loyaltyPoints': FieldValue.increment(order.pointsRedeemed),
+        });
+      } catch (e) {
+        debugPrint('Error restoring points to customer ${order.customerId}: $e');
       }
+    }
 
-      DocumentReference userRef = _db.collection('users').doc(order.customerId);
-      DocumentSnapshot userSnap = await transaction.get(userRef);
+    // 3. Restore inventory if order was previously processing, ready, or out_for_delivery
+    final bool stockWasDeducted = order.status == 'processing' || order.status == 'ready' || order.status == 'out_for_delivery';
+    if (stockWasDeducted) {
+      for (var item in order.items) {
+        if (item.productId.isEmpty) continue;
+        try {
+          final invRef = _db.collection('inventory').doc(item.productId);
+          final invSnap = await invRef.get();
+          if (!invSnap.exists || invSnap.data() == null) continue;
 
-      Map<String, DocumentSnapshot> invSnapshots = {};
-      if (order.status == 'processing') {
-        for (var item in order.items) {
-          if (item.productId.isEmpty) continue;
-          DocumentReference invRef = _db.collection('inventory').doc(item.productId);
-          DocumentSnapshot invSnap = await transaction.get(invRef);
-          if (invSnap.exists) {
-            invSnapshots[item.productId] = invSnap;
-          }
-        }
-      }
+          InventoryItem invItem = InventoryItem.fromMap(invSnap.data()!, invSnap.id);
+          bool updated = false;
 
-      // 2. ALL WRITES SECOND
-      // Mark order as cancelled
-      transaction.update(orderRef, {
-        'status': 'cancelled',
-        'updatedAt': Timestamp.now(),
-      });
-
-      // Return redeemed points to customer if any
-      if (order.pointsRedeemed > 0) {
-        if (userSnap.exists) {
-          transaction.update(userRef, {
-            'loyaltyPoints': FieldValue.increment(order.pointsRedeemed),
-          });
-        } else {
-          transaction.set(userRef, {
-            'loyaltyPoints': FieldValue.increment(order.pointsRedeemed),
-          }, SetOptions(merge: true));
-        }
-      }
-
-      // Restore inventory if order was previously processing
-      if (order.status == 'processing') {
-        for (var item in order.items) {
-          if (item.productId.isEmpty) continue;
-          DocumentSnapshot? invSnap = invSnapshots[item.productId];
-          if (invSnap == null || !invSnap.exists || invSnap.data() == null) continue;
-
-          InventoryItem invItem = InventoryItem.fromMap(invSnap.data() as Map<String, dynamic>, invSnap.id);
           if (item.variant != null && item.variant!.isNotEmpty) {
             int vIndex = invItem.variants.indexWhere((v) => v.name == item.variant);
             if (vIndex != -1) {
@@ -607,6 +520,7 @@ class FirestoreService {
                 quantity: invItem.variants[vIndex].quantity + item.qty,
                 price: invItem.variants[vIndex].price,
               );
+              updated = true;
             }
           } else if (invItem.variants.isNotEmpty) {
             invItem.variants[0] = ProductVariant(
@@ -614,15 +528,20 @@ class FirestoreService {
               quantity: invItem.variants[0].quantity + item.qty,
               price: invItem.variants[0].price,
             );
+            updated = true;
           }
 
-          transaction.update(invSnap.reference, {
-            'variants': invItem.variants.map((v) => v.toMap()).toList(),
-            'updatedAt': Timestamp.now(),
-          });
+          if (updated) {
+            await invRef.update({
+              'variants': invItem.variants.map((v) => v.toMap()).toList(),
+              'updatedAt': Timestamp.now(),
+            });
+          }
+        } catch (e) {
+          debugPrint('Error restoring inventory for ${item.productId}: $e');
         }
       }
-    });
+    }
   }
 
   Future<void> deletePayslip(String id) async {
@@ -707,8 +626,9 @@ class FirestoreService {
     String? driverId,
     String? orderId,
   }) async {
-    if (type == 'delivery' && orderId != null) {
+    if (type == 'delivery' && orderId != null && orderId.isNotEmpty) {
       final existing = await _db.collection('conversations')
+          .where('customerId', isEqualTo: customerId)
           .where('orderId', isEqualTo: orderId)
           .where('type', isEqualTo: 'delivery')
           .limit(1)
@@ -796,22 +716,10 @@ class FirestoreService {
       'lastMessage': sanitizedText,
       'lastSender': msg.senderName,
       'lastRole': msg.senderRole,
+      if (msg.senderRole == 'customer') 'customerName': msg.senderName,
       'updatedAt': Timestamp.fromDate(msg.timestamp),
       'unreadCount': FieldValue.increment(1),
     }, SetOptions(merge: true));
-
-    // 5. Trigger notification
-    if (msg.senderRole == 'customer') {
-      NotificationService.instance.showNotification(
-        title: '💬 New Customer Message (${msg.senderName})',
-        body: sanitizedText,
-      );
-    } else {
-      NotificationService.instance.showNotification(
-        title: '💬 New Support/Driver Message',
-        body: sanitizedText,
-      );
-    }
   }
 
   Future<void> updateConversationStatus(String conversationId, String status) async {
