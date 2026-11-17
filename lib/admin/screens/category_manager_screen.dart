@@ -6,7 +6,10 @@ import 'package:go_router/go_router.dart';
 import '../../core/services/firestore_service.dart';
 import '../../core/models/category.dart';
 import '../../core/theme/hardware_theme.dart';
+import '../../core/utils/responsive.dart';
 import '../../core/components/top_notification.dart';
+import '../../core/components/responsive_page_header.dart';
+import '../../core/components/responsive_action_button.dart';
 
 class CategoryManagerScreen extends StatelessWidget {
   const CategoryManagerScreen({super.key});
@@ -64,42 +67,17 @@ class CategoryManagerScreen extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
               child: Column(
                 children: [
-                  Row(
-                    children: [
-                      Glass(
-                        radius: 16,
-                        child: SizedBox(
-                          width: 38,
-                          height: 38,
-                          child: IconButton(
-                            onPressed: () {
-                              if (Navigator.canPop(context)) {
-                                Navigator.pop(context);
-                              } else {
-                                context.go('/admin/inventory');
-                              }
-                            },
-                            icon: Icon(Icons.arrow_back_rounded, color: p.text, size: 18),
-                            padding: EdgeInsets.zero,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      const Icon(Icons.category_rounded, color: hwOrange, size: 20),
-                      const SizedBox(width: 10),
-                      Text('Categories', style: TextStyle(fontWeight: FontWeight.w800, color: p.text, fontSize: 20)),
-                      const Spacer(),
-                      ElevatedButton.icon(
+                  ResponsivePageHeader(
+                    icon: Icons.category_rounded,
+                    title: 'Categories',
+                    actions: [
+                      ResponsiveActionButton(
+                        icon: Icons.add_rounded,
+                        label: 'NEW CATEGORY',
                         onPressed: () => _showAddCategoryDialog(context, firestoreService),
-                        icon: const Icon(Icons.add_rounded, size: 18),
-                        label: const Text('NEW CATEGORY'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: hwOrange,
-                          foregroundColor: Colors.white,
-                          elevation: 0,
-                          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
+                        backgroundColor: hwOrange,
+                        foregroundColor: Colors.white,
+                        tooltip: 'Add New Category',
                       ),
                     ],
                   ),

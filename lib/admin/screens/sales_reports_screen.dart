@@ -12,7 +12,10 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import '../../core/theme/hardware_theme.dart';
+import '../../core/utils/responsive.dart';
 import '../../core/components/top_notification.dart';
+import '../../core/components/responsive_page_header.dart';
+import '../../core/components/responsive_action_button.dart';
 import '../../core/components/skeleton_loader.dart';
 
 class SalesReportsScreen extends StatefulWidget {
@@ -145,25 +148,21 @@ class _SalesReportsScreenState extends State<SalesReportsScreen> with SingleTick
             children: [
               Padding(
                 padding: const EdgeInsets.fromLTRB(24, 20, 24, 12),
-                child: Row(
-                  children: [
-                    const Icon(Icons.fact_check_rounded, color: hwOrange, size: 22),
-                    const SizedBox(width: 10),
-                    Text('System Audit & Analytics', style: TextStyle(fontWeight: FontWeight.w800, color: p.text, fontSize: 18)),
-                      const Spacer(),
-                      TextButton.icon(
-                        onPressed: _generateFullAuditReport,
-                        icon: const Icon(Icons.picture_as_pdf_rounded, color: hwOrange, size: 16),
-                        label: const Text('EXPORT', style: TextStyle(color: hwOrange, fontWeight: FontWeight.w700)),
-                        style: TextButton.styleFrom(
-                          backgroundColor: hwOrange.withValues(alpha: 0.12),
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                        ),
-                      ),
-                    ],
-                  ),
+                child: ResponsivePageHeader(
+                  icon: Icons.fact_check_rounded,
+                  title: 'System Audit & Analytics',
+                  actions: [
+                    ResponsiveActionButton(
+                      icon: Icons.picture_as_pdf_rounded,
+                      label: 'EXPORT',
+                      onPressed: _generateFullAuditReport,
+                      backgroundColor: hwOrange.withValues(alpha: 0.12),
+                      foregroundColor: hwOrange,
+                      tooltip: 'Export Audit Report',
+                    ),
+                  ],
                 ),
+              ),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
                   child: _glass(
@@ -181,11 +180,67 @@ class _SalesReportsScreenState extends State<SalesReportsScreen> with SingleTick
                       indicatorPadding: const EdgeInsets.all(6),
                       dividerColor: Colors.transparent,
                       labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 11),
-                      tabs: const [
-                        Tab(text: 'SALES', icon: Icon(Icons.payments_outlined, size: 16)),
-                        Tab(text: 'INVENTORY', icon: Icon(Icons.inventory_2_outlined, size: 16)),
-                        Tab(text: 'ATTENDANCE', icon: Icon(Icons.alarm, size: 16)),
-                        Tab(text: 'LOYALTY', icon: Icon(Icons.stars_outlined, size: 16)),
+                      tabs: [
+                        Tab(
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.payments_outlined, size: 16),
+                                if (!Breakpoints.isMobile(context)) ...[
+                                  const SizedBox(width: 6),
+                                  const Text('SALES'),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ),
+                        Tab(
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.inventory_2_outlined, size: 16),
+                                if (!Breakpoints.isMobile(context)) ...[
+                                  const SizedBox(width: 6),
+                                  const Text('INVENTORY'),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ),
+                        Tab(
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.alarm, size: 16),
+                                if (!Breakpoints.isMobile(context)) ...[
+                                  const SizedBox(width: 6),
+                                  const Text('ATTENDANCE'),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ),
+                        Tab(
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.stars_outlined, size: 16),
+                                if (!Breakpoints.isMobile(context)) ...[
+                                  const SizedBox(width: 6),
+                                  const Text('LOYALTY'),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ),
                       ],
                     ),
                   ),

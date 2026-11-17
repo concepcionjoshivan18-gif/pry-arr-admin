@@ -37,8 +37,12 @@ class AdminScaffold extends StatelessWidget {
         child: Scaffold(
           backgroundColor: Colors.transparent,
           appBar: AppBar(
-            title: const Text('PRY-ARR Admin'),
+            title: Text(
+              'PRY-ARR Admin',
+              style: TextStyle(color: p.text, fontWeight: FontWeight.w800, fontSize: 18),
+            ),
             backgroundColor: p.surface,
+            foregroundColor: p.text,
             elevation: 0,
             actions: [
               Padding(
@@ -51,10 +55,75 @@ class AdminScaffold extends StatelessWidget {
             ],
           ),
           drawer: Drawer(
-            backgroundColor: p.dark ? const Color(0xFF181C26) : const Color(0xFF1F2430),
-            child: HoverSidebar(
-              currentRoute: currentRoute,
-              onSignOut: () => authService.signOut(),
+            width: 280,
+            backgroundColor: p.surface,
+            child: ListView(
+              padding: EdgeInsets.zero,
+              children: [
+                DrawerHeader(
+                  decoration: BoxDecoration(color: p.surface),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: const BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: LinearGradient(colors: [hwOrange, hwRust]),
+                        ),
+                        child: const Icon(Icons.hardware_rounded, color: Colors.white, size: 22),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              'PRY-ARR Admin',
+                              style: TextStyle(color: p.text, fontSize: 16, fontWeight: FontWeight.w800),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            Text(
+                              authService.currentUser?.fullName.isNotEmpty == true ? authService.currentUser!.fullName : 'System Admin',
+                              style: TextStyle(color: p.faint, fontSize: 12),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                for (int i = 0; i < HoverSidebar.items.length; i++) ...{
+                  Builder(builder: (context) {
+                    final item = HoverSidebar.items[i];
+                    final isActive = currentRoute.startsWith(item.$3);
+                    return ListTile(
+                      leading: Icon(item.$2, color: isActive ? hwOrange : p.faint),
+                      title: Text(item.$1, style: TextStyle(color: p.text, fontWeight: FontWeight.w600)),
+                      selected: isActive,
+                      selectedColor: hwOrange,
+                      selectedTileColor: hwOrange.withValues(alpha: 0.12),
+                      onTap: () {
+                        Navigator.pop(context);
+                        context.go(item.$3);
+                      },
+                    );
+                  }),
+                },
+                const Divider(),
+                ListTile(
+                  leading: const Icon(Icons.logout_rounded, color: Colors.redAccent),
+                  title: const Text('Sign Out', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.w600)),
+                  onTap: () {
+                    Navigator.pop(context);
+                    authService.signOut();
+                  },
+                ),
+              ],
             ),
           ),
           body: Stack(

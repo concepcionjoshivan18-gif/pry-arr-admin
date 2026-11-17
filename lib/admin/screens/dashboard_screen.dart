@@ -7,6 +7,7 @@ import '../../core/models/order.dart';
 import '../../core/models/sale.dart';
 import '../../core/models/app_user.dart';
 import '../../core/theme/hardware_theme.dart';
+import '../../core/components/responsive_page_header.dart';
 import '../../core/components/skeleton_loader.dart';
 import 'dart:math' as math;
 import 'package:intl/intl.dart';
@@ -88,32 +89,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: [
-                              const Icon(Icons.hardware_rounded, color: hwOrange, size: 26),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'Hardware Store Dashboard',
-                                      style: ts(p.text, 24, FontWeight.w800),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      'Home / Dashboard / Overview',
-                                      style: ts(p.faint, 12),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(width: 12),
+                          ResponsivePageHeader(
+                            icon: Icons.hardware_rounded,
+                            title: 'Hardware Store Dashboard',
+                            breadcrumb: 'Home / Dashboard / Overview',
+                            actions: [
                               _buildTopBar(themeController, items),
                             ],
                           ),

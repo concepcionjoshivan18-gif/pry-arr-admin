@@ -5,6 +5,8 @@ import 'dart:math' as math;
 import '../../core/services/firestore_service.dart';
 import '../../core/models/order.dart';
 import '../../core/theme/hardware_theme.dart';
+import '../../core/utils/responsive.dart';
+import '../../core/components/responsive_page_header.dart';
 import '../../core/config/payment_policy.dart';
 import '../../core/components/skeleton_loader.dart';
 import 'pending_payment_detail_screen.dart';
@@ -57,19 +59,15 @@ class _PendingPaymentsScreenState extends State<PendingPaymentsScreen> {
             slivers: [
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(36, 32, 36, 16),
+                  padding: const EdgeInsets.fromLTRB(24, 20, 24, 16),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        children: [
-                          const Icon(Icons.payments_rounded, color: hwOrange, size: 26),
-                          const SizedBox(width: 10),
-                          Text('Pending Payments Review', style: ts(p.text, 26, FontWeight.w800)),
-                        ],
+                      ResponsivePageHeader(
+                        icon: Icons.payments_rounded,
+                        title: 'Pending Payments Review',
+                        breadcrumb: 'Admin / Pending GCash Receipts & Manual Review',
                       ),
-                      const SizedBox(height: 6),
-                      Text('Admin / Pending GCash Receipts & Manual Review', style: ts(p.faint, 12)),
                       const SizedBox(height: 16),
                       Container(
                         padding: const EdgeInsets.all(14),
@@ -116,10 +114,21 @@ class _PendingPaymentsScreenState extends State<PendingPaymentsScreen> {
                       (context, index) {
                         final order = pendingOrders[index];
                         final bool isHighValue = order.total >= highValueHoldThreshold;
+                        final isMobile = Breakpoints.isMobile(context);
+
+                        final highValueBadge = Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: hwYellow.withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: hwYellow),
+                          ),
+                          child: Text('Hold: High Value', style: ts(hwYellow, 10, FontWeight.w800)),
+                        );
 
                         return Container(
                           margin: const EdgeInsets.only(bottom: 16),
-                          padding: const EdgeInsets.all(20),
+                          padding: EdgeInsets.all(isMobile ? 14 : 20),
                           decoration: BoxDecoration(
                             color: p.surface,
                             borderRadius: BorderRadius.circular(20),
@@ -128,79 +137,115 @@ class _PendingPaymentsScreenState extends State<PendingPaymentsScreen> {
                               BoxShadow(color: p.shadow, blurRadius: 16, offset: const Offset(0, 8)),
                             ],
                           ),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.center,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              // Receipt Thumbnail
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(12),
-                                child: Container(
-                                  width: 60,
-                                  height: 80,
-                                  color: p.fill,
-                                  child: order.receiptImageUrl != null && order.receiptImageUrl!.isNotEmpty
-                                      ? Image.network(
-                                          order.receiptImageUrl!,
-                                          fit: BoxFit.cover,
-                                          errorBuilder: (_, __, ___) => const Icon(Icons.receipt_rounded, color: hwOrange),
-                                        )
-                                      : const Icon(Icons.receipt_rounded, color: hwOrange),
-                                ),
-                              ),
-                              const SizedBox(width: 16),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  // Receipt Thumbnail
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: Container(
+                                      width: isMobile ? 50 : 60,
+                                      height: isMobile ? 70 : 80,
+                                      color: p.fill,
+                                      child: order.receiptImageUrl != null && order.receiptImageUrl!.isNotEmpty
+                                          ? Image.network(
+                                              order.receiptImageUrl!,
+                                              fit: BoxFit.cover,
+                                              errorBuilder: (_, __, ___) => const Icon(Icons.receipt_rounded, color: hwOrange),
+                                            )
+                                          : const Icon(Icons.receipt_rounded, color: hwOrange),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
-                                        Text('Order #${order.id.substring(0, math.min(6, order.id.length))}', style: ts(p.text, 15, FontWeight.w800)),
-                                        if (isHighValue)
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                            decoration: BoxDecoration(
-                                              color: hwYellow.withValues(alpha: 0.2),
-                                              borderRadius: BorderRadius.circular(8),
-                                              border: Border.all(color: hwYellow),
-                                            ),
-                                            child: Text('Hold: High Value', style: ts(hwYellow, 10, FontWeight.w800)),
+                                        if (isMobile) ...[
+                                          Text('Order #${order.id.substring(0, math.min(6, order.id.length))}', style: ts(p.text, 14, FontWeight.w800)),
+                                          if (isHighValue) ...[
+                                            const SizedBox(height: 4),
+                                            highValueBadge,
+                                          ],
+                                        ] else
+                                          Row(
+                                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                            children: [
+                                              Text('Order #${order.id.substring(0, math.min(6, order.id.length))}', style: ts(p.text, 15, FontWeight.w800)),
+                                              if (isHighValue) highValueBadge,
+                                            ],
                                           ),
+                                        const SizedBox(height: 4),
+                                        Text('Customer: ${order.customerName}', style: ts(p.sub, isMobile ? 12 : 13, FontWeight.w600), maxLines: 1, overflow: TextOverflow.ellipsis),
+                                        const SizedBox(height: 4),
+                                        Text('Ref: ${order.gcashReferenceNumber ?? 'N/A'} • GCash Amt: ₱${order.gcashAmount?.toStringAsFixed(2) ?? 'N/A'}', style: ts(p.faint, 11), maxLines: 1, overflow: TextOverflow.ellipsis),
+                                        const SizedBox(height: 4),
+                                        Text('Reason: ${order.reviewReason ?? 'pending_review'}', style: ts(hwOrange, 11, FontWeight.w700), maxLines: 1, overflow: TextOverflow.ellipsis),
                                       ],
                                     ),
-                                    const SizedBox(height: 4),
-                                    Text('Customer: ${order.customerName}', style: ts(p.sub, 13, FontWeight.w600)),
-                                    const SizedBox(height: 4),
-                                    Text('Ref: ${order.gcashReferenceNumber ?? 'N/A'} • GCash Amt: ₱${order.gcashAmount?.toStringAsFixed(2) ?? 'N/A'}', style: ts(p.faint, 12)),
-                                    const SizedBox(height: 4),
-                                    Text('Reason: ${order.reviewReason ?? 'pending_review'}', style: ts(hwOrange, 12, FontWeight.w700)),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(width: 16),
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.end,
-                                children: [
-                                  Text('₱${order.total.toStringAsFixed(2)}', style: ts(p.amber, 18, FontWeight.w900)),
-                                  const SizedBox(height: 8),
-                                  ElevatedButton(
-                                    onPressed: () {
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (context) => PendingPaymentDetailScreen(order: order),
-                                        ),
-                                      );
-                                    },
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: hwOrange,
-                                      foregroundColor: Colors.white,
-                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                    ),
-                                    child: const Text('Review', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
                                   ),
+                                  if (!isMobile) ...[
+                                    const SizedBox(width: 16),
+                                    Column(
+                                      crossAxisAlignment: CrossAxisAlignment.end,
+                                      children: [
+                                        Text('₱${order.total.toStringAsFixed(2)}', style: ts(p.amber, 18, FontWeight.w900)),
+                                        const SizedBox(height: 8),
+                                        ElevatedButton(
+                                          onPressed: () {
+                                            Navigator.push(
+                                              context,
+                                              MaterialPageRoute(
+                                                builder: (context) => PendingPaymentDetailScreen(order: order),
+                                              ),
+                                            );
+                                          },
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: hwOrange,
+                                            foregroundColor: Colors.white,
+                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                          ),
+                                          child: const Text('Review', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
                                 ],
                               ),
+                              if (isMobile) ...[
+                                const SizedBox(height: 12),
+                                Divider(color: p.line, height: 1),
+                                const SizedBox(height: 12),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text('Total: ₱${order.total.toStringAsFixed(2)}', style: ts(p.amber, 15, FontWeight.w900)),
+                                    SizedBox(
+                                      height: 36,
+                                      child: ElevatedButton(
+                                        onPressed: () {
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (context) => PendingPaymentDetailScreen(order: order),
+                                            ),
+                                          );
+                                        },
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: hwOrange,
+                                          foregroundColor: Colors.white,
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                                        ),
+                                        child: const Text('Review', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
                             ],
                           ),
                         );

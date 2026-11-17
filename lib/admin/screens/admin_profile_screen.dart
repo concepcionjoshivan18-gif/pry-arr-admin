@@ -9,6 +9,7 @@ import '../../core/components/profile_picture_picker.dart';
 import '../../core/utils/validators.dart';
 import '../components/app_back_button.dart';
 import '../../core/theme/hardware_theme.dart';
+import '../../core/components/responsive_page_header.dart';
 import '../../core/components/top_notification.dart';
 import '../../core/components/skeleton_loader.dart';
 import '../components/admin_scaffold.dart';
@@ -233,13 +234,9 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
               constraints: const BoxConstraints(maxWidth: 640),
               child: Column(
                 children: [
-                  // Header title
-                  Row(
-                    children: [
-                      const Icon(Icons.engineering_rounded, color: hwOrange, size: 22),
-                      const SizedBox(width: 10),
-                      Text('My Workstation Profile', style: TextStyle(color: p.text, fontWeight: FontWeight.w800, fontSize: 20)),
-                    ],
+                  ResponsivePageHeader(
+                    icon: Icons.engineering_rounded,
+                    title: 'My Workstation Profile',
                   ),
                   const SizedBox(height: 20),
                   // ---- Avatar + name card ----

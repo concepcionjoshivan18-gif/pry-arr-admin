@@ -10,6 +10,8 @@ import '../../core/utils/pdf_generator.dart';
 import '../../core/components/top_notification.dart';
 import 'package:intl/intl.dart';
 import '../../core/theme/hardware_theme.dart';
+import '../../core/utils/responsive.dart';
+import '../../core/components/responsive_page_header.dart';
 import '../../core/components/skeleton_loader.dart';
 
 Widget _hwGlass({
@@ -62,15 +64,9 @@ class PayrollScreen extends StatelessWidget {
             children: [
               Padding(
                 padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
-                child: Row(
-                  children: [
-                    const Icon(Icons.account_balance_wallet_rounded, color: hwOrange, size: 22),
-                    const SizedBox(width: 10),
-                    Text(
-                      'Automated Daily Payroll (Cash Basis)',
-                      style: TextStyle(fontWeight: FontWeight.w800, color: p.text, fontSize: 18),
-                    ),
-                  ],
+                child: ResponsivePageHeader(
+                  icon: Icons.account_balance_wallet_rounded,
+                  title: 'Automated Daily Payroll (Cash Basis)',
                 ),
               ),
               const SizedBox(height: 12),

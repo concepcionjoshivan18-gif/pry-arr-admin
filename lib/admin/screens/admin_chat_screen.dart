@@ -6,6 +6,7 @@ import '../../core/services/firestore_service.dart';
 import '../../core/services/auth_service.dart';
 import '../../core/models/chat_message.dart';
 import '../../core/theme/hardware_theme.dart';
+import '../../core/components/responsive_page_header.dart';
 import '../../core/components/skeleton_loader.dart';
 
 class AdminChatScreen extends StatefulWidget {
@@ -78,12 +79,6 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
 
     return Scaffold(
       backgroundColor: Colors.transparent,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        automaticallyImplyLeading: false,
-        title: Text('Customer Support Messages', style: ts(p.text, 20, FontWeight.w800)),
-      ),
       body: Stack(
         children: [
           const Positioned.fill(child: Background()),
@@ -91,6 +86,13 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 20, 24, 12),
+                  child: ResponsivePageHeader(
+                    icon: Icons.chat_bubble_outline_rounded,
+                    title: 'Customer Support Messages',
+                  ),
+                ),
                 Expanded(
                   child: StreamBuilder<List<Map<String, dynamic>>>(
                     stream: fs.streamActiveConversationsAdmin(type: 'support'),

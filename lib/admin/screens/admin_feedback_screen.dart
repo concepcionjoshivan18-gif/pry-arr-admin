@@ -7,6 +7,7 @@ import '../../core/models/review.dart';
 import '../../core/components/pagination_controls.dart';
 import '../components/app_back_button.dart';
 import '../../core/theme/hardware_theme.dart';
+import '../../core/components/responsive_page_header.dart';
 import '../../core/components/skeleton_loader.dart';
 import '../components/admin_scaffold.dart';
 
@@ -55,13 +56,9 @@ class _AdminFeedbackScreenState extends State<AdminFeedbackScreen> {
               // Header Title
               Padding(
                 padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
-                child: Row(
-                  children: [
-                    const Icon(Icons.reviews_rounded, color: hwOrange, size: 22),
-                    const SizedBox(width: 10),
-                    Text('Customer Feedback & Ratings',
-                        style: TextStyle(fontWeight: FontWeight.w800, color: p.text, fontSize: 20)),
-                  ],
+                child: ResponsivePageHeader(
+                  icon: Icons.reviews_rounded,
+                  title: 'Customer Feedback & Ratings',
                 ),
               ),
               const SizedBox(height: 8),

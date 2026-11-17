@@ -12,6 +12,8 @@ import 'package:image_picker/image_picker.dart';
 import '../../core/services/storage_service.dart';
 import '../../core/theme/hardware_theme.dart';
 import '../../core/utils/responsive.dart';
+import '../../core/components/responsive_page_header.dart';
+import '../../core/components/responsive_action_button.dart';
 import '../../core/components/top_notification.dart';
 import '../../core/components/pagination_controls.dart';
 import '../../core/components/skeleton_loader.dart';
@@ -120,36 +122,25 @@ class _InventoryScreenState extends State<InventoryScreen> {
             // Header title and action buttons
             Padding(
               padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
-              child: Row(
-                children: [
-                  const Icon(Icons.inventory_2_rounded, color: hwOrange, size: 22),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      'Inventory Catalog',
-                      style: TextStyle(fontWeight: FontWeight.w800, color: p.text, fontSize: 20),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  TextButton.icon(
+              child: ResponsivePageHeader(
+                icon: Icons.inventory_2_rounded,
+                title: 'Inventory Catalog',
+                actions: [
+                  ResponsiveActionButton(
+                    icon: Icons.category_rounded,
+                    label: 'CATEGORIES',
                     onPressed: () => context.push('/admin/categories'),
-                    icon: const Icon(Icons.category_rounded, size: 18, color: hwYellow),
-                    label: const Text('CATEGORIES', style: TextStyle(color: hwYellow, fontWeight: FontWeight.w700)),
+                    backgroundColor: hwYellow.withValues(alpha: 0.18),
+                    foregroundColor: hwYellow,
+                    tooltip: 'Manage Categories',
                   ),
-                  const SizedBox(width: 8),
-                  ElevatedButton.icon(
+                  ResponsiveActionButton(
+                    icon: Icons.add_rounded,
+                    label: 'ADD NEW',
                     onPressed: () => _showItemDialog(context),
-                    icon: const Icon(Icons.add_rounded, size: 18),
-                    label: const Text('ADD NEW'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: hwOrange,
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
+                    backgroundColor: hwOrange,
+                    foregroundColor: Colors.white,
+                    tooltip: 'Add New Item',
                   ),
                 ],
               ),

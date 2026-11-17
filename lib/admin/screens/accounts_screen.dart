@@ -13,6 +13,8 @@ import '../../core/components/pagination_controls.dart';
 import '../../core/utils/image_helper.dart';
 import '../../core/theme/hardware_theme.dart';
 import '../../core/utils/responsive.dart';
+import '../../core/components/responsive_page_header.dart';
+import '../../core/components/responsive_action_button.dart';
 import '../../core/components/top_notification.dart';
 import '../../core/components/skeleton_loader.dart';
 import '../components/admin_scaffold.dart';
@@ -59,40 +61,17 @@ class _AccountsScreenState extends State<AccountsScreen> {
                 // Header with title and add button
                 Padding(
                   padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.badge_rounded, color: hwOrange, size: 22),
-                      const SizedBox(width: 10),
-                      Text('Account Management', style: TextStyle(fontWeight: FontWeight.w800, color: p.text, fontSize: 20)),
-                      const Spacer(),
-                      Material(
-                        color: Colors.transparent,
-                        child: InkWell(
-                          onTap: () => _showAddStaffDialog(context),
-                          borderRadius: BorderRadius.circular(12),
-                          child: Ink(
-                            decoration: BoxDecoration(
-                              gradient: const LinearGradient(colors: [hwOrange, hwRust]),
-                              borderRadius: BorderRadius.circular(12),
-                              boxShadow: [
-                                BoxShadow(color: hwOrange.withValues(alpha: 0.35), blurRadius: 12, offset: const Offset(0, 6)),
-                              ],
-                            ),
-                            child: const Padding(
-                              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(Icons.person_add_rounded, color: Colors.white, size: 20),
-                                  SizedBox(width: 6),
-                                  Text('ADD STAFF',
-                                      style: TextStyle(
-                                          color: Colors.white, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
+                  child: ResponsivePageHeader(
+                    icon: Icons.badge_rounded,
+                    title: 'Account Management',
+                    actions: [
+                      ResponsiveActionButton(
+                        icon: Icons.person_add_rounded,
+                        label: 'ADD STAFF',
+                        onPressed: () => _showAddStaffDialog(context),
+                        backgroundColor: hwOrange,
+                        foregroundColor: Colors.white,
+                        tooltip: 'Add Staff Member',
                       ),
                     ],
                   ),
